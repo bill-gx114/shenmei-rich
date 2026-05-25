@@ -2,7 +2,15 @@ export type Hotspot = { x: number; y: number; label: string; detail: string };
 
 export type AudioLine = { t: number; text: string };
 
-export type AudioGuideData = { duration: number; lines: AudioLine[] };
+/**
+ * Multi-voice script. Each voice has its own parallel timeline. Frontend
+ * picks the variant matching the user's narratorVoice tweak; if the chosen
+ * voice has no lines, AudioGuide falls back to '清·克制'.
+ */
+export type AudioGuideData = {
+  duration: number;
+  variants: Record<string, AudioLine[]>;
+};
 
 export type Question = { q: string; hint: string; options: string[] };
 

@@ -32,7 +32,16 @@ function PauseIcon() {
 }
 
 export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
-  const { lines, duration } = guide;
+  // Pick the script that matches the current narrator voice; if a work was
+  // created before multi-voice support (no variant for the chosen voice),
+  // fall back to '清·克制', then to whatever exists.
+  const variants = guide.variants ?? {};
+  const lines =
+    variants[narratorVoice] ??
+    variants['清·克制'] ??
+    Object.values(variants)[0] ??
+    [];
+  const { duration } = guide;
   const supported = isTTSSupported();
 
   const [playing, setPlaying] = useState(false);
@@ -64,6 +73,19 @@ export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
     });
     return () => player.cancel();
   }, [player, narratorVoice, speed, lines.length]);
+
+  // When the narrator voice changes, the active script lines change too. Stop
+  // any in-progress playback so the user can press play to hear the new voice
+  // from the beginning — leaving the old utterance running would speak the
+  // wrong words.
+  useEffect(() => {
+    player.cancel();
+    setPlaying(false);
+    setActiveIdx(-1);
+    // narratorVoice intentionally drives this; we don't want to reset on
+    // every speed change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narratorVoice, player]);
 
   useEffect(() => {
     const off = onVoicesReady(() => {});

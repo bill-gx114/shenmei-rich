@@ -19,7 +19,7 @@
 import type { Config } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
-import { generateCuratorPack } from '../lib/curator.js';
+import { generateCuratorPack, VOICE_KEYS } from '../lib/curator.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -200,14 +200,29 @@ export default async () => {
     const r = await supabase.from('hotspots').insert(rows);
     if (r.error) errors.push(`hotspots: ${r.error.message}`);
   }
-  if (pack.audioLines?.length) {
-    const rows = pack.audioLines.map((l, i) => ({
-      work_id: workId,
-      t: l.t,
-      text: l.text,
-      order_index: i,
-    }));
-    const r = await supabase.from('audio_lines').insert(rows);
+  // pack.audioLines is now keyed by voice. Flatten into one big insert with
+  // (voice, order_index) per row so the frontend can fetch per-voice.
+  const audioRows: Array<{
+    work_id: string;
+    t: number;
+    text: string;
+    order_index: number;
+    voice: string;
+  }> = [];
+  for (const voice of VOICE_KEYS) {
+    const lines = pack.audioLines?.[voice] ?? [];
+    lines.forEach((l, i) => {
+      audioRows.push({
+        work_id: workId,
+        t: l.t,
+        text: l.text,
+        order_index: i,
+        voice,
+      });
+    });
+  }
+  if (audioRows.length) {
+    const r = await supabase.from('audio_lines').insert(audioRows);
     if (r.error) errors.push(`audio_lines: ${r.error.message}`);
   }
   if (pack.questions?.length) {

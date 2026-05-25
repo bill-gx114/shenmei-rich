@@ -8,7 +8,7 @@ import { TodayPage } from './pages/TodayPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
-import { useTweaks } from './hooks/useTweaks';
+import { TweaksProvider, useTweaks } from './hooks/useTweaks';
 import { useTodayWork, useArchive, useJournal, saveNotebookEntry } from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -252,14 +252,16 @@ export default function App() {
   void isSupabaseConfigured;
 
   return (
-    <BrowserRouter>
-      <AuthGate>
-        <Routes>
-          <Route path="/" element={<MuseumShell />} />
-          <Route path="/new" element={<AdminNewWorkPage />} />
-        </Routes>
-        <AppTweaks />
-      </AuthGate>
-    </BrowserRouter>
+    <TweaksProvider>
+      <BrowserRouter>
+        <AuthGate>
+          <Routes>
+            <Route path="/" element={<MuseumShell />} />
+            <Route path="/new" element={<AdminNewWorkPage />} />
+          </Routes>
+          <AppTweaks />
+        </AuthGate>
+      </BrowserRouter>
+    </TweaksProvider>
   );
 }

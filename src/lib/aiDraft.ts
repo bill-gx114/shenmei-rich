@@ -2,10 +2,19 @@
 // The function lives at /api/curator-draft (configured in
 // netlify/functions/curator-draft.ts via `export const config`).
 
+type AudioLine = { t: number; text: string };
+
+/**
+ * Server returns audioLines keyed by voice. The single-script admin form
+ * doesn't expose voice variants, so we surface a flat `audioLines` array
+ * (defaults to 清·克制) for the form to consume, while keeping
+ * `audioLinesByVoice` available for callers that want the full pack.
+ */
 export type CuratorDraft = {
   shortLabel: string;
   hotspots: Array<{ x: number; y: number; label: string; detail: string }>;
-  audioLines: Array<{ t: number; text: string }>;
+  audioLines: AudioLine[];
+  audioLinesByVoice: Record<string, AudioLine[]>;
   questions: Array<{ q: string; hint: string; options: string[] }>;
   vocabulary: Array<{ word: string; note: string; isNew: boolean }>;
 };
@@ -40,5 +49,23 @@ export async function draftCuratorPack(input: DraftInput): Promise<CuratorDraft>
     throw new Error(detail || `请求失败 (${r.status})`);
   }
 
-  return (await r.json()) as CuratorDraft;
+  const raw = (await r.json()) as {
+    shortLabel: string;
+    hotspots: CuratorDraft['hotspots'];
+    audioLines: Record<string, AudioLine[]> | AudioLine[];
+    questions: CuratorDraft['questions'];
+    vocabulary: CuratorDraft['vocabulary'];
+  };
+  const byVoice: Record<string, AudioLine[]> = Array.isArray(raw.audioLines)
+    ? { '清·克制': raw.audioLines }
+    : raw.audioLines;
+  const flat = byVoice['清·克制'] ?? Object.values(byVoice)[0] ?? [];
+  return {
+    shortLabel: raw.shortLabel,
+    hotspots: raw.hotspots,
+    audioLines: flat,
+    audioLinesByVoice: byVoice,
+    questions: raw.questions,
+    vocabulary: raw.vocabulary,
+  };
 }

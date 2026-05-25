@@ -45,13 +45,26 @@ async function fetchTodayWork(): Promise<Work | null> {
 
   const [hot, lines, qs, vocab] = await Promise.all([
     supabase.from('hotspots').select('*').eq('work_id', w.id).order('order_index'),
-    supabase.from('audio_lines').select('*').eq('work_id', w.id).order('order_index'),
+    supabase.from('audio_lines').select('*').eq('work_id', w.id).order('voice').order('order_index'),
     supabase.from('questions').select('*').eq('work_id', w.id).order('order_index'),
     supabase.from('vocabulary').select('*').eq('work_id', w.id),
   ]);
 
-  const duration =
-    (lines.data?.[lines.data.length - 1]?.t ?? 0) + 18;
+  // Group audio lines by voice. Rows without a voice column (pre-0003 data)
+  // get bucketed under the default '清·克制'.
+  const variants: Record<string, Array<{ t: number; text: string }>> = {};
+  for (const l of lines.data ?? []) {
+    const v = (l.voice as string) || '清·克制';
+    if (!variants[v]) variants[v] = [];
+    variants[v].push({ t: l.t, text: l.text });
+  }
+  // Use the longest voice's last `t` as duration estimate.
+  let lastT = 0;
+  for (const arr of Object.values(variants)) {
+    const t = arr[arr.length - 1]?.t ?? 0;
+    if (t > lastT) lastT = t;
+  }
+  const duration = lastT + 18;
 
   return {
     id: w.id,
@@ -77,7 +90,7 @@ async function fetchTodayWork(): Promise<Work | null> {
     })),
     audioGuide: {
       duration,
-      lines: (lines.data ?? []).map((l) => ({ t: l.t, text: l.text })),
+      variants,
     },
     questions: (qs.data ?? []).map((q) => ({
       q: q.q,
