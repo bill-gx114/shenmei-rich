@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import { Signage } from './components/Signage';
 import { Viewer } from './components/Viewer';
 import { TweaksPanel, TweakSection, TweakSlider, TweakRadio, TweakToggle } from './components/TweaksPanel';
@@ -8,6 +8,7 @@ import { TodayPage } from './pages/TodayPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
+import { WorkDetailPage } from './pages/WorkDetailPage';
 import { TweaksProvider, useTweaks } from './hooks/useTweaks';
 import { useTodayWork, useArchive, useJournal, saveNotebookEntry } from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
@@ -42,7 +43,15 @@ function canEditHotspots(session: Session | null, work: Work): boolean {
 }
 
 function MuseumShell() {
-  const [tab, setTab] = useState<string>('today');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') ?? 'today';
+  const setTab = (next: string) => {
+    if (next === 'today') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab: next }, { replace: true });
+    }
+  };
   const [viewerOpen, setViewerOpen] = useState(false);
   const [tweaks] = useTweaks();
   const today = useTodayWork();
@@ -110,7 +119,9 @@ function MuseumShell() {
       {tab === 'archive' && (
         <ArchivePage
           works={archiveWorks}
-          onOpen={() => setTab('journal')}
+          onOpen={(w) => {
+            if (w.id) nav(`/work/${w.id}`);
+          }}
           stats={{
             visited: archiveWorks.length,
             pinned: archiveWorks.filter((w) => w.pinned).length,
@@ -258,6 +269,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<MuseumShell />} />
             <Route path="/new" element={<AdminNewWorkPage />} />
+            <Route path="/work/:id" element={<WorkDetailPage />} />
           </Routes>
           <AppTweaks />
         </AuthGate>

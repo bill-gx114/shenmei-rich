@@ -166,7 +166,7 @@ export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
           </div>
         </div>
         <div className="guide-speed">
-          {[0.8, 1, 1.25].map((s) => (
+          {[0.75, 1, 1.5].map((s) => (
             <button key={s} className={speed === s ? 'on' : ''} onClick={() => setSpeed(s)}>
               {s}×
             </button>

@@ -28,21 +28,9 @@ function publicImageUrl(imagePath: string | null): string {
   return data.publicUrl;
 }
 
-async function fetchTodayWork(): Promise<Work | null> {
-  // Prefer the user's own work for today; fall back to the global daily work
-  // published by the cron. RLS already filters to (mine | global), so we just
-  // need to order so that NULL owner_id (= global) comes last.
-  const { data: works, error } = await supabase
-    .from('works')
-    .select('*')
-    .eq('exhibited_on', todayISO())
-    .order('owner_id', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  if (!works || !works.length) return null;
-  const w = works[0];
-
+/** Given a `works` row, fetch all its child rows and assemble a full Work. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function hydrateWork(w: any): Promise<Work> {
   const [hot, lines, qs, vocab] = await Promise.all([
     supabase.from('hotspots').select('*').eq('work_id', w.id).order('order_index'),
     supabase.from('audio_lines').select('*').eq('work_id', w.id).order('voice').order('order_index'),
@@ -50,15 +38,12 @@ async function fetchTodayWork(): Promise<Work | null> {
     supabase.from('vocabulary').select('*').eq('work_id', w.id),
   ]);
 
-  // Group audio lines by voice. Rows without a voice column (pre-0003 data)
-  // get bucketed under the default '清·克制'.
   const variants: Record<string, Array<{ t: number; text: string }>> = {};
   for (const l of lines.data ?? []) {
     const v = (l.voice as string) || '清·克制';
     if (!variants[v]) variants[v] = [];
     variants[v].push({ t: l.t, text: l.text });
   }
-  // Use the longest voice's last `t` as duration estimate.
   let lastT = 0;
   for (const arr of Object.values(variants)) {
     const t = arr[arr.length - 1]?.t ?? 0;
@@ -88,10 +73,7 @@ async function fetchTodayWork(): Promise<Work | null> {
       label: h.label,
       detail: h.detail,
     })),
-    audioGuide: {
-      duration,
-      variants,
-    },
+    audioGuide: { duration, variants },
     questions: (qs.data ?? []).map((q) => ({
       q: q.q,
       hint: q.hint ?? '',
@@ -103,6 +85,51 @@ async function fetchTodayWork(): Promise<Work | null> {
       isNew: !!v.is_new,
     })),
   };
+}
+
+async function fetchTodayWork(): Promise<Work | null> {
+  // Prefer the user's own work for today; fall back to the global daily work
+  // published by the cron. RLS already filters to (mine | global), so we just
+  // need to order so that NULL owner_id (= global) comes last.
+  const { data: works, error } = await supabase
+    .from('works')
+    .select('*')
+    .eq('exhibited_on', todayISO())
+    .order('owner_id', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  if (!works || !works.length) return null;
+  return hydrateWork(works[0]);
+}
+
+async function fetchWorkById(id: string): Promise<Work | null> {
+  const { data: w, error } = await supabase.from('works').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!w) return null;
+  return hydrateWork(w);
+}
+
+export function useWorkById(id: string | undefined): LoadState<Work> & { refresh: () => void } {
+  const [state, setState] = useState<LoadState<Work>>({
+    data: null,
+    loading: Boolean(id) && isSupabaseConfigured,
+    error: null,
+  });
+
+  const load = useCallback(() => {
+    if (!isSupabaseConfigured || !id) return;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    fetchWorkById(id)
+      .then((data) => setState({ data, loading: false, error: null }))
+      .catch((err: Error) => setState({ data: null, loading: false, error: err.message }));
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { ...state, refresh: load };
 }
 
 export function useTodayWork(): LoadState<Work> & { refresh: () => void } {
@@ -136,6 +163,7 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
   return (data ?? []).map((w, i) => {
     const d = new Date(w.exhibited_on);
     return {
+      id: w.id,
       no: w.no,
       date: `${d.getMonth() + 1}月${d.getDate()}日`,
       title: w.title,

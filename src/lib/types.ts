@@ -40,6 +40,7 @@ export type Work = {
 };
 
 export type ArchiveWork = {
+  id?: string;
   no: string;
   date: string;
   title: string;

@@ -12,6 +12,10 @@ type Props = {
   onGoArchive: () => void;
   /** Past works count, excluding today. Drives the "走进馆藏" CTA. */
   pastCount: number;
+  /** 'today' (default) shows the "tomorrow's room" corridor. 'past' shows
+      a "back to today's exhibit" CTA instead. */
+  mode?: 'today' | 'past';
+  onBackToToday?: () => void;
   onSaveNotebook?: (answers: { chip: string; text: string }[]) => Promise<void> | void;
   /** When provided, the user is allowed to edit hotspots for this work. */
   onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
@@ -42,6 +46,8 @@ export function TodayPage({
   onOpenViewer,
   onGoArchive,
   pastCount,
+  mode = 'today',
+  onBackToToday,
   onSaveNotebook,
   onSaveHotspots,
 }: Props) {
@@ -112,7 +118,9 @@ export function TodayPage({
     <div className="gallery-wrap">
       <header className="gallery-head">
         <div>
-          <div className="lead">Today · 今日观摩</div>
+          <div className="lead">
+            {mode === 'past' ? 'Archive · 回看' : 'Today · 今日观摩'}
+          </div>
           <h1>
             《{work.title}》<span className="accent">·</span>
             <span style={{ fontFamily: 'var(--display)', fontStyle: 'italic', fontSize: 38, color: 'var(--ink-2)' }}>
@@ -206,17 +214,39 @@ export function TodayPage({
       <Notebook work={work} onSave={onSaveNotebook} />
 
       <section className="corridor">
-        <div className="arrow">↓ Next room</div>
-        <h3>明日 · 第 {nextRoomLabel(work.no)} 间展厅</h3>
-        <p>每天一幅。第二天的灯亮起前，你可以继续坐在这间展厅里，反复看，反复写。</p>
-        {pastCount > 0 ? (
-          <button className="btn-ghost" onClick={onGoArchive}>
-            走进馆藏，看你过去的 {pastCount} 间展厅 →
-          </button>
+        {mode === 'past' ? (
+          <>
+            <div className="arrow">← Back</div>
+            <h3>回到今日展厅</h3>
+            <p>这间展厅你随时可以再回来。今日的画，仍然挂在它的位置。</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              {onBackToToday && (
+                <button className="btn-primary" onClick={onBackToToday}>
+                  回到今日展厅 →
+                </button>
+              )}
+              {pastCount > 0 && (
+                <button className="btn-ghost" onClick={onGoArchive}>
+                  回馆藏挑别的
+                </button>
+              )}
+            </div>
+          </>
         ) : (
-          <div style={{ color: 'var(--ink-4)', fontSize: 12.5, fontStyle: 'italic', fontFamily: 'var(--display)' }}>
-            ——这是你的第一间展厅——
-          </div>
+          <>
+            <div className="arrow">↓ Next room</div>
+            <h3>明日 · 第 {nextRoomLabel(work.no)} 间展厅</h3>
+            <p>每天一幅。第二天的灯亮起前，你可以继续坐在这间展厅里，反复看，反复写。</p>
+            {pastCount > 0 ? (
+              <button className="btn-ghost" onClick={onGoArchive}>
+                走进馆藏，看你过去的 {pastCount} 间展厅 →
+              </button>
+            ) : (
+              <div style={{ color: 'var(--ink-4)', fontSize: 12.5, fontStyle: 'italic', fontFamily: 'var(--display)' }}>
+                ——这是你的第一间展厅——
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>
