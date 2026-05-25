@@ -59,15 +59,6 @@ function MuseumShell() {
   const journal = useJournal();
   const nav = useNavigate();
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const spot = Math.max(0.2, tweaks.spotlight / 100);
-    root.style.setProperty('--spot', String(spot));
-    root.style.fontSize = `${14 * (tweaks.textScale / 100)}px`;
-    root.classList.toggle('frame-none', tweaks.frame === 'none');
-    root.classList.toggle('frame-thin', tweaks.frame === 'thin');
-  }, [tweaks]);
-
   const todayWork = today.data;
   const archiveWorks = archive.data ?? [];
   const journalData = journal.data;
@@ -246,9 +237,12 @@ function AppTweaks() {
   );
 }
 
-export default function App() {
-  // Apply tweak side-effects globally on first mount too, so refreshing into
-  // /new still gets the right font scale / spotlight.
+/**
+ * Applies Tweaks values to global CSS variables on every change. Lives INSIDE
+ * <TweaksProvider> so it can consume the shared state. Rendered once so the
+ * styles apply on every route (today / new / work/:id).
+ */
+function TweaksSideEffects() {
   const [tweaks] = useTweaks();
   useEffect(() => {
     const root = document.documentElement;
@@ -258,12 +252,16 @@ export default function App() {
     root.classList.toggle('frame-none', tweaks.frame === 'none');
     root.classList.toggle('frame-thin', tweaks.frame === 'thin');
   }, [tweaks]);
+  return null;
+}
 
+export default function App() {
   // Suppress the supabase-not-configured noise from blocking the dev experience.
   void isSupabaseConfigured;
 
   return (
     <TweaksProvider>
+      <TweaksSideEffects />
       <BrowserRouter>
         <AuthGate>
           <Routes>
