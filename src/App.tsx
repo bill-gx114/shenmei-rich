@@ -89,6 +89,7 @@ function MuseumShell() {
           tweaks={tweaks}
           onOpenViewer={() => setViewerOpen(true)}
           onGoArchive={() => setTab('archive')}
+          pastCount={Math.max(0, archiveWorks.length - (todayWork ? 1 : 0))}
           onSaveNotebook={
             todayWork.id
               ? (answers) => saveNotebookEntry(todayWork.id!, answers)

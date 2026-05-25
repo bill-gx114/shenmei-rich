@@ -10,10 +10,18 @@ type Props = {
   tweaks: Tweaks;
   onOpenViewer: () => void;
   onGoArchive: () => void;
+  /** Past works count, excluding today. Drives the "走进馆藏" CTA. */
+  pastCount: number;
   onSaveNotebook?: (answers: { chip: string; text: string }[]) => Promise<void> | void;
   /** When provided, the user is allowed to edit hotspots for this work. */
   onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
 };
+
+function nextRoomLabel(currentNo: string): string {
+  const n = parseInt(currentNo, 10);
+  if (Number.isNaN(n)) return '—';
+  return String(n + 1).padStart(currentNo.length, '0');
+}
 
 const FIELD: React.CSSProperties = {
   background: 'transparent',
@@ -33,6 +41,7 @@ export function TodayPage({
   tweaks,
   onOpenViewer,
   onGoArchive,
+  pastCount,
   onSaveNotebook,
   onSaveHotspots,
 }: Props) {
@@ -198,11 +207,17 @@ export function TodayPage({
 
       <section className="corridor">
         <div className="arrow">↓ Next room</div>
-        <h3>明日 · 第 029 间展厅</h3>
+        <h3>明日 · 第 {nextRoomLabel(work.no)} 间展厅</h3>
         <p>每天一幅。第二天的灯亮起前，你可以继续坐在这间展厅里，反复看，反复写。</p>
-        <button className="btn-ghost" onClick={onGoArchive}>
-          走进馆藏，看你过去的 27 间展厅 →
-        </button>
+        {pastCount > 0 ? (
+          <button className="btn-ghost" onClick={onGoArchive}>
+            走进馆藏，看你过去的 {pastCount} 间展厅 →
+          </button>
+        ) : (
+          <div style={{ color: 'var(--ink-4)', fontSize: 12.5, fontStyle: 'italic', fontFamily: 'var(--display)' }}>
+            ——这是你的第一间展厅——
+          </div>
+        )}
       </section>
     </div>
   );
