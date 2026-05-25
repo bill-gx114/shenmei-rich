@@ -29,21 +29,56 @@ function beijingTodayISO(): string {
   return beijing.toISOString().slice(0, 10);
 }
 
-async function fetchWikipediaImage(seed: SeedWork): Promise<string | null> {
-  const url = `https://${seed.wikipediaLang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(seed.wikipediaSlug)}`;
+type WikiSummary = {
+  originalimage?: { source: string };
+  thumbnail?: { source: string };
+};
+
+async function fetchSummaryImage(lang: string, slug: string): Promise<string | null> {
   try {
+    const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
     const r = await fetch(url, {
       headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' },
     });
     if (!r.ok) return null;
-    const data = (await r.json()) as {
-      originalimage?: { source: string };
-      thumbnail?: { source: string };
-    };
+    const data = (await r.json()) as WikiSummary;
     return data.originalimage?.source ?? data.thumbnail?.source ?? null;
   } catch {
     return null;
   }
+}
+
+async function searchWikipediaSlug(lang: string, query: string): Promise<string | null> {
+  try {
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(query)}`;
+    const r = await fetch(url, {
+      headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' },
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+    const title = data.query?.search?.[0]?.title;
+    return title ? title.replace(/ /g, '_') : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWikipediaImage(seed: SeedWork): Promise<string | null> {
+  // 1. Try the configured slug.
+  const direct = await fetchSummaryImage(seed.wikipediaLang, seed.wikipediaSlug);
+  if (direct) return direct;
+
+  // 2. Fallback: search by "title artist" in en.wikipedia (more reliable than
+  //    zh/ja for art), take the first hit, fetch its summary.
+  const searchQuery = `${seed.title} ${seed.artist}`;
+  for (const lang of ['en', seed.wikipediaLang]) {
+    const slug = await searchWikipediaSlug(lang, searchQuery);
+    if (!slug) continue;
+    const img = await fetchSummaryImage(lang, slug);
+    if (img) return img;
+  }
+
+  return null;
 }
 
 function jsonResponse(status: number, body: unknown) {

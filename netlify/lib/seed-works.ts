@@ -27,7 +27,7 @@ export type SeedWork = {
 
 export const SEED_WORKS: SeedWork[] = [
   {
-    wikipediaSlug: 'Red_Fuji_southern_wind_clear_morning',
+    wikipediaSlug: 'Fine_Wind,_Clear_Morning',
     wikipediaLang: 'en',
     title: '凯风快晴',
     artist: '葛饰北斋',

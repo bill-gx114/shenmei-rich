@@ -11,7 +11,14 @@ import { CONSTELLATION, PAST_WORKS, PATTERNS, TODAY_WORK } from '../lib/mock';
 type LoadState<T> = { data: T | null; loading: boolean; error: string | null };
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  // Use the browser's local timezone, not UTC — otherwise Chinese users in
+  // the morning hit UTC's "yesterday" and the daily exhibit (stored with
+  // Beijing date) doesn't match.
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function publicImageUrl(imagePath: string | null): string {

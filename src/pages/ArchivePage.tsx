@@ -11,11 +11,12 @@ const FILTERS = [
 
 function CollTile({ work, onClick }: { work: ArchiveWork; onClick: () => void }) {
   const [failed, setFailed] = useState(false);
+  const noImage = !work.img;
   return (
     <article className={`coll-tile s-${work.span || 3}`} onClick={onClick}>
       <div className="thumb">
         {work.pinned && <div className="pin">★ 收藏</div>}
-        {failed ? (
+        {failed || noImage ? (
           <div
             style={{
               position: 'absolute',
