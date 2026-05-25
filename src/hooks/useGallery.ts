@@ -55,6 +55,7 @@ async function fetchTodayWork(): Promise<Work | null> {
 
   return {
     id: w.id,
+    ownerId: w.owner_id,
     no: w.no,
     total: w.total ?? 365,
     title: w.title,

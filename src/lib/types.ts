@@ -10,6 +10,8 @@ export type VocabularyItem = { word: string; note: string; isNew: boolean };
 
 export type Work = {
   id?: string;
+  /** null = global daily work (system-published); uuid = personal */
+  ownerId?: string | null;
   no: string;
   total: number;
   title: string;

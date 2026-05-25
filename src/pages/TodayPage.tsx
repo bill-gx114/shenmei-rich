@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Artwork } from '../components/Artwork';
 import { WallLabel } from '../components/WallLabel';
 import { AudioGuide } from '../components/AudioGuide';
 import { Notebook } from '../components/Notebook';
-import type { Tweaks, Work } from '../lib/types';
+import type { Hotspot, Tweaks, Work } from '../lib/types';
 
 type Props = {
   work: Work;
@@ -11,11 +11,93 @@ type Props = {
   onOpenViewer: () => void;
   onGoArchive: () => void;
   onSaveNotebook?: (answers: { chip: string; text: string }[]) => Promise<void> | void;
+  /** When provided, the user is allowed to edit hotspots for this work. */
+  onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
 };
 
-export function TodayPage({ work, tweaks, onOpenViewer, onGoArchive, onSaveNotebook }: Props) {
+const FIELD: React.CSSProperties = {
+  background: 'transparent',
+  border: 0,
+  borderBottom: '1px solid var(--line-strong)',
+  color: 'var(--ink)',
+  padding: '6px 0',
+  fontFamily: 'var(--serif)',
+  fontSize: 14,
+  letterSpacing: '0.02em',
+  outline: 'none',
+  width: '100%',
+};
+
+export function TodayPage({
+  work,
+  tweaks,
+  onOpenViewer,
+  onGoArchive,
+  onSaveNotebook,
+  onSaveHotspots,
+}: Props) {
   const [showHotspots, setShowHotspots] = useState(tweaks.showHotspotsByDefault);
   const [focusedSpot, setFocusedSpot] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [draftHotspots, setDraftHotspots] = useState<Hotspot[]>(work.hotspots);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  // Reset the draft whenever the underlying work changes (e.g., refresh
+  // after save, or a new daily work loaded).
+  useEffect(() => {
+    setDraftHotspots(work.hotspots);
+    setEditMode(false);
+    setFocusedSpot(null);
+    setSaveErr(null);
+  }, [work.id, work.hotspots]);
+
+  const canEdit = Boolean(onSaveHotspots);
+  // While editing, the Artwork shows the draft; otherwise the saved version.
+  const displayedWork: Work = editMode
+    ? { ...work, hotspots: draftHotspots }
+    : work;
+
+  const enterEdit = () => {
+    setDraftHotspots(work.hotspots);
+    setEditMode(true);
+    setShowHotspots(true);
+    setFocusedSpot(null);
+    setSaveErr(null);
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setDraftHotspots(work.hotspots);
+    setFocusedSpot(null);
+    setSaveErr(null);
+  };
+
+  const save = async () => {
+    if (!onSaveHotspots) return;
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      await onSaveHotspots(draftHotspots);
+      setEditMode(false);
+      setFocusedSpot(null);
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateFocusedHotspot = (patch: Partial<Hotspot>) => {
+    if (focusedSpot == null) return;
+    setDraftHotspots((arr) => arr.map((h, i) => (i === focusedSpot ? { ...h, ...patch } : h)));
+  };
+
+  const deleteFocusedHotspot = () => {
+    if (focusedSpot == null) return;
+    setDraftHotspots((arr) => arr.filter((_, i) => i !== focusedSpot));
+    setFocusedSpot(null);
+  };
 
   return (
     <div className="gallery-wrap">
@@ -40,23 +122,68 @@ export function TodayPage({ work, tweaks, onOpenViewer, onGoArchive, onSaveNoteb
       <div className="exhibit">
         <div className="stage">
           <Artwork
-            work={work}
+            work={displayedWork}
             showHotspots={showHotspots}
             focusedSpot={focusedSpot}
             onSpotClick={setFocusedSpot}
+            editMode={editMode}
+            onHotspotsChange={(next) => setDraftHotspots(next)}
           />
           <div className="floor" />
           <div className="stage-caption">
-            <div className="hint">
-              {focusedSpot != null
-                ? work.hotspots[focusedSpot].detail
-                : '试着点击画面上发亮的圆点 — 策展人为你指出三处看点'}
+            <div className="hint" style={editMode ? { flex: 1 } : undefined}>
+              {editMode ? (
+                focusedSpot != null && displayedWork.hotspots[focusedSpot] ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <input
+                      style={{ ...FIELD, fontSize: 14, color: 'var(--gold)', fontStyle: 'italic' }}
+                      value={displayedWork.hotspots[focusedSpot].label}
+                      placeholder="看点名称"
+                      onChange={(e) => updateFocusedHotspot({ label: e.target.value })}
+                    />
+                    <textarea
+                      style={{ ...FIELD, minHeight: 36, color: 'var(--ink-2)', resize: 'vertical' }}
+                      value={displayedWork.hotspots[focusedSpot].detail}
+                      placeholder="说明"
+                      onChange={(e) => updateFocusedHotspot({ detail: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--ink-4)' }}>
+                    拖动黄点改位置 · 点画面空白处加一个新点 · 点已有点编辑文字
+                  </span>
+                )
+              ) : focusedSpot != null ? (
+                work.hotspots[focusedSpot].detail
+              ) : (
+                '试着点击画面上发亮的圆点 — 策展人为你指出三处看点'
+              )}
+              {saveErr && (
+                <div style={{ color: '#c97a55', fontSize: 12, marginTop: 8 }}>{saveErr}</div>
+              )}
             </div>
             <div className="controls">
-              <button className={showHotspots ? 'on' : ''} onClick={() => setShowHotspots((s) => !s)}>
-                {showHotspots ? '·  看点已开  ·' : '看点'}
-              </button>
-              <button onClick={onOpenViewer}>放大细看</button>
+              {editMode ? (
+                <>
+                  {focusedSpot != null && (
+                    <button onClick={deleteFocusedHotspot}>删除此点</button>
+                  )}
+                  <button onClick={cancelEdit} disabled={saving}>
+                    取消
+                  </button>
+                  <button className="on" onClick={save} disabled={saving}>
+                    {saving ? '保存中…' : '保存'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className={showHotspots ? 'on' : ''} onClick={() => setShowHotspots((s) => !s)}>
+                    {showHotspots ? '·  看点已开  ·' : '看点'}
+                  </button>
+                  <button onClick={onOpenViewer}>放大细看</button>
+                  {canEdit && <button onClick={enterEdit}>调看点</button>}
+                </>
+              )}
             </div>
           </div>
         </div>

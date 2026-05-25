@@ -10,14 +10,35 @@ import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
 import { useTweaks } from './hooks/useTweaks';
 import { useTodayWork, useArchive, useJournal, saveNotebookEntry } from './hooks/useGallery';
+import { saveHotspots } from './lib/saveHotspots';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { useSession } from './hooks/useSession';
+import type { Session } from '@supabase/supabase-js';
+import type { Work } from './lib/types';
 
 const NARRATOR_VOICES = ['清·克制', '专业·锐利', '诗意·散文'];
 const FRAME_OPTIONS: Array<'mat' | 'thin' | 'none'> = ['mat', 'thin', 'none'];
 
+// Single-source-of-truth admin email (matched against logged-in user). Public
+// — it's just an email, not a secret. The actual permission check happens
+// server-side in /api/save-hotspots; this flag only controls whether the UI
+// affordance shows.
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.toLowerCase();
+
 function formatDate(d: Date) {
   return `${d.getFullYear()} · ${String(d.getMonth() + 1).padStart(2, '0')} · ${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** UI gate for the "调看点" button. The real auth happens server-side. */
+function canEditHotspots(session: Session | null, work: Work): boolean {
+  if (!session?.user) return false;
+  // Own work → always editable
+  if (work.ownerId && work.ownerId === session.user.id) return true;
+  // Global work → only admin
+  if (work.ownerId == null && ADMIN_EMAIL && session.user.email?.toLowerCase() === ADMIN_EMAIL) {
+    return true;
+  }
+  return false;
 }
 
 function MuseumShell() {
@@ -71,6 +92,14 @@ function MuseumShell() {
           onSaveNotebook={
             todayWork.id
               ? (answers) => saveNotebookEntry(todayWork.id!, answers)
+              : undefined
+          }
+          onSaveHotspots={
+            todayWork.id && canEditHotspots(session, todayWork)
+              ? async (hs) => {
+                  await saveHotspots(todayWork.id!, hs);
+                  today.refresh();
+                }
               : undefined
           }
         />
