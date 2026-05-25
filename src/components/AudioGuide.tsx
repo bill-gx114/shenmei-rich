@@ -77,8 +77,17 @@ export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
     const c = scriptRef.current;
     const el = lineRefs.current[activeIdx];
     if (!c || !el) return;
-    const target = el.offsetTop - c.clientHeight / 2 + el.clientHeight / 2;
-    c.scrollTo({ top: target, behavior: 'smooth' });
+    // Use bounding rects so this works even when the container has no
+    // explicit `position` (offsetParent would otherwise be the body and the
+    // math drifts). The visual goal: the active line's vertical center sits
+    // at the container's vertical center.
+    const cRect = c.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const lineTopWithinViewport = elRect.top - cRect.top;
+    const target =
+      c.scrollTop + lineTopWithinViewport - c.clientHeight / 2 + elRect.height / 2;
+    const max = c.scrollHeight - c.clientHeight;
+    c.scrollTo({ top: Math.max(0, Math.min(max, target)), behavior: 'smooth' });
     onLineChange?.(activeIdx);
   }, [activeIdx, onLineChange]);
 

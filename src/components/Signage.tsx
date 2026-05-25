@@ -4,6 +4,9 @@ type Props = {
   room: string;
   visitorNo: string;
   date: string;
+  /** When provided, replaces the static "visitor count" pill with action buttons. */
+  onNewWork?: () => void;
+  onLogout?: () => void;
 };
 
 const TABS = [
@@ -12,7 +15,21 @@ const TABS = [
   { id: 'journal', label: '观察手账' },
 ];
 
-export function Signage({ tab, onTab, room, visitorNo, date }: Props) {
+const ACTION_BTN: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid var(--line-strong)',
+  color: 'var(--ink-2)',
+  fontFamily: 'var(--serif)',
+  fontSize: 11.5,
+  padding: '6px 12px',
+  borderRadius: 999,
+  letterSpacing: '0.1em',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+export function Signage({ tab, onTab, room, visitorNo, date, onNewWork, onLogout }: Props) {
+  const showActions = Boolean(onNewWork || onLogout);
   return (
     <header className="signage">
       <div className="signage-l">
@@ -30,9 +47,24 @@ export function Signage({ tab, onTab, room, visitorNo, date }: Props) {
       </nav>
       <div className="signage-r">
         <span className="date">{date}</span>
-        <span className="visitor">
-          <span className="dot" /> 第 {visitorNo} 次到访
-        </span>
+        {showActions ? (
+          <>
+            {onNewWork && (
+              <button style={ACTION_BTN} onClick={onNewWork}>
+                ＋ 新作品
+              </button>
+            )}
+            {onLogout && (
+              <button style={ACTION_BTN} onClick={onLogout}>
+                退出
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="visitor">
+            <span className="dot" /> 第 {visitorNo} 次到访
+          </span>
+        )}
       </div>
     </header>
   );

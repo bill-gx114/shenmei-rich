@@ -42,6 +42,8 @@ function MuseumShell() {
   const archiveWorks = archive.data ?? [];
   const journalData = journal.data;
 
+  const { configured, session } = useSession();
+
   return (
     <div className="museum">
       <Signage
@@ -50,6 +52,14 @@ function MuseumShell() {
         room={todayWork?.room ?? '— 暂未开馆 —'}
         visitorNo={todayWork?.no ?? '000'}
         date={formatDate(new Date())}
+        onNewWork={configured ? () => nav('/new') : undefined}
+        onLogout={
+          configured && session
+            ? async () => {
+                await supabase.auth.signOut();
+              }
+            : undefined
+        }
       />
 
       {tab === 'today' && (todayWork ? (
@@ -87,8 +97,6 @@ function MuseumShell() {
       )}
 
       {viewerOpen && todayWork && <Viewer work={todayWork} onClose={() => setViewerOpen(false)} />}
-
-      <TopRight onNewWork={() => nav('/new')} />
     </div>
   );
 }
@@ -150,37 +158,6 @@ function EmptyToday({
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-function TopRight({ onNewWork }: { onNewWork: () => void }) {
-  const { configured, session } = useSession();
-  if (!configured) return null;
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 22,
-        right: 24,
-        display: 'flex',
-        gap: 10,
-        zIndex: 60,
-      }}
-    >
-      <button className="btn-ghost" onClick={onNewWork}>
-        ＋ 新作品
-      </button>
-      {session && (
-        <button
-          className="btn-ghost"
-          onClick={async () => {
-            await supabase.auth.signOut();
-          }}
-        >
-          退出
-        </button>
-      )}
     </div>
   );
 }
