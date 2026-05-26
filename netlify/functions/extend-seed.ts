@@ -99,31 +99,40 @@ async function callDeepSeek(existingList: string): Promise<Candidate[]> {
   return parsed.candidates ?? [];
 }
 
-async function wikiHasImage(slug: string, lang: string): Promise<boolean> {
+const WIKI_UA = 'AestheticDaily/1.0 (https://github.com/bill-gx114/shenmei-rich; contact via github issues)';
+
+type WikiProbe = { ok: boolean; status: number; hasImage: boolean };
+
+async function wikiHasImage(slug: string, lang: string): Promise<WikiProbe> {
   try {
     const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`;
-    const r = await fetch(url, {
-      headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' },
-    });
-    if (!r.ok) return false;
+    const r = await fetch(url, { headers: { 'User-Agent': WIKI_UA } });
+    if (!r.ok) return { ok: false, status: r.status, hasImage: false };
     const data = (await r.json()) as {
       originalimage?: { source: string };
       thumbnail?: { source: string };
     };
-    return Boolean(data.originalimage?.source || data.thumbnail?.source);
+    const hasImage = Boolean(data.originalimage?.source || data.thumbnail?.source);
+    return { ok: true, status: r.status, hasImage };
   } catch {
-    return false;
+    return { ok: false, status: 0, hasImage: false };
   }
 }
 
 async function wikiSearchTop(lang: 'en' | 'zh' | 'ja', q: string): Promise<string[]> {
   try {
-    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=3&format=json&origin=*&srsearch=${encodeURIComponent(q)}`;
-    const r = await fetch(url, { headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' } });
-    if (!r.ok) return [];
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=3&format=json&srsearch=${encodeURIComponent(q)}`;
+    const r = await fetch(url, { headers: { 'User-Agent': WIKI_UA } });
+    if (!r.ok) {
+      console.log(`[wiki-search] ${lang} "${q}" → HTTP ${r.status}`);
+      return [];
+    }
     const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
-    return (d.query?.search ?? []).map((s) => s.title.replace(/ /g, '_'));
-  } catch {
+    const titles = (d.query?.search ?? []).map((s) => s.title.replace(/ /g, '_'));
+    console.log(`[wiki-search] ${lang} "${q}" → ${titles.length ? titles.join(', ') : '(no results)'}`);
+    return titles;
+  } catch (e) {
+    console.log(`[wiki-search] ${lang} "${q}" → throw: ${e instanceof Error ? e.message : e}`);
     return [];
   }
 }
@@ -166,9 +175,16 @@ async function findWorkingSlug(
   }
 
   // 3. Probe each candidate for an actual image.
+  const probeLog: string[] = [];
   for (const c of tried) {
-    if (await wikiHasImage(c.slug, c.lang)) return c;
+    const probe = await wikiHasImage(c.slug, c.lang);
+    probeLog.push(`${c.lang}/${c.slug}=${probe.status}${probe.hasImage ? '+img' : ''}`);
+    if (probe.hasImage) {
+      console.log(`[wiki-probe] "${title}" → HIT ${c.lang}/${c.slug} (probes: ${probeLog.join(' | ')})`);
+      return c;
+    }
   }
+  console.log(`[wiki-probe] "${title}" → MISS (${tried.length} tried: ${probeLog.join(' | ')})`);
   return null;
 }
 
