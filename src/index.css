@@ -1304,6 +1304,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── responsive ───────────────────────────────────────────────────────── */
 
+/* tablet */
 @media (max-width: 1100px) {
   .exhibit { grid-template-columns: 1fr; }
   .right-col { position: static; }
@@ -1318,4 +1319,194 @@ button { font-family: inherit; cursor: pointer; }
   .coll-tile.s-4 { grid-column: span 3; }
   .coll-tile.s-3 { grid-column: span 3; }
   .coll-tile.s-2 { grid-column: span 3; }
+}
+
+/* phone */
+@media (max-width: 640px) {
+  /* ── signage: stack into two rows; bring back action buttons ── */
+  .signage {
+    padding: 10px 14px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 10px;
+    text-align: center;
+  }
+  .signage-l { justify-content: center; font-size: 10.5px; flex-wrap: wrap; gap: 8px; }
+  .signage-l .room { display: none; }
+  .signage-nav { font-size: 12px; }
+  .signage-nav button { padding: 6px 12px; font-size: 12px; letter-spacing: 0.03em; }
+  /* override the tablet rule that hid this entirely */
+  .signage-r {
+    display: flex !important;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+  }
+  .signage-r .date { display: none; }
+  .signage-r .visitor { padding: 5px 10px; font-size: 10px; }
+
+  /* ── gallery wrap ── */
+  .gallery-wrap { padding: 28px 14px 50px; max-width: 100%; }
+  .gallery-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+  }
+  .gallery-head .lead { font-size: 11px; letter-spacing: 0.24em; margin-bottom: 8px; }
+  .gallery-head h1 { font-size: 26px; line-height: 1.15; letter-spacing: 0.02em; }
+  .gallery-head h1 .accent { margin: 0 4px; }
+  .gallery-head h1 span { font-size: 22px !important; }
+  .gallery-head .meta { text-align: left; font-size: 11px; }
+  .gallery-head .meta .num { font-size: 22px; margin-top: 4px; }
+
+  /* ── frame / canvas ── */
+  .frame { padding: 14px 14px 28px; }
+  .frame::before { display: none; }
+  .frame .plate { font-size: 10.5px; bottom: 8px; letter-spacing: 0.14em; }
+  .frame-thin .frame { padding: 8px 8px 10px; }
+
+  /* hotspot tip: cap width so it doesn't run off the screen edge */
+  .hotspot .tip { max-width: 70vw; white-space: normal; font-size: 11px; }
+
+  /* ── stage caption: stack ── */
+  .stage-caption {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .stage-caption .hint { font-size: 12.5px; text-align: left; }
+  .stage-caption .controls { width: 100%; flex-wrap: wrap; gap: 8px; }
+  .stage-caption .controls button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    font-size: 10px;
+    padding: 7px 10px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── audio guide ── */
+  .guide-bar { padding: 12px 14px; gap: 12px; }
+  .guide-play { width: 38px; height: 38px; }
+  .guide-script { padding: 16px 18px 20px; max-height: 220px; font-size: 14px; line-height: 1.8; }
+  .guide-line { padding-left: 12px; margin-bottom: 12px; }
+  .guide-time { font-size: 10px; min-width: 60px; }
+  .guide-speed { padding-left: 8px; }
+  .guide-speed button { font-size: 10px; padding: 4px 5px; }
+  .guide-narrator { font-size: 11px; letter-spacing: 0.12em; }
+
+  /* ── wall label ── */
+  .label { padding: 20px 18px 18px; }
+  .label h2 { font-size: 22px; }
+  .label .artist { font-size: 15px; }
+  .label dl { grid-template-columns: 56px 1fr; column-gap: 12px; font-size: 12px; row-gap: 6px; }
+
+  /* ── notebook ── */
+  .notebook { margin-top: 50px; padding-top: 38px; gap: 28px; }
+  .notebook::before { font-size: 11px; padding: 0 16px; letter-spacing: 0.3em; }
+  .nb-block label { font-size: 16px; margin-bottom: 8px; }
+  .nb-block .chip { font-size: 11px; padding: 4px 9px; }
+  .nb-block input, .nb-block textarea { font-size: 14px; }
+  .nb-actions { flex-direction: column; gap: 12px; align-items: stretch; }
+  .nb-actions .btn-primary { width: 100%; padding: 14px; }
+  .nb-status { text-align: center; font-size: 11.5px; }
+  .dictionary { padding: 20px 18px; }
+  .dictionary .word { font-size: 13px; padding: 5px 11px; }
+
+  /* ── corridor / next room ── */
+  .corridor { margin-top: 50px; padding: 38px 16px; }
+  .corridor h3 { font-size: 22px; letter-spacing: 0.04em; }
+  .corridor p { font-size: 13px; }
+  .corridor .arrow { font-size: 12px; letter-spacing: 0.32em; }
+
+  /* ── archive ── */
+  .archive-wrap { padding: 40px 14px 60px; max-width: 100%; }
+  .archive-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 28px;
+    padding-bottom: 18px;
+  }
+  .archive-head h1 { font-size: 30px; }
+  .archive-head .stats { width: 100%; justify-content: space-between; gap: 0; }
+  .archive-head .stat .v { font-size: 28px; }
+  .archive-head .stat .l { font-size: 10px; }
+  .archive-filters { flex-wrap: wrap; align-self: stretch; padding: 3px; gap: 2px; }
+  .archive-filters button { font-size: 12px; padding: 6px 12px; flex: 1 1 auto; min-width: 0; }
+  .collection-wall { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .coll-tile.s-2,
+  .coll-tile.s-3,
+  .coll-tile.s-4,
+  .coll-tile.s-5,
+  .coll-tile.s-6 { grid-column: span 1; }
+  .coll-tile .thumb,
+  .coll-tile.s-2 .thumb,
+  .coll-tile.s-3 .thumb,
+  .coll-tile.s-4 .thumb,
+  .coll-tile.s-5 .thumb,
+  .coll-tile.s-6 .thumb { aspect-ratio: 1 / 1; }
+  .coll-tile .info { padding: 12px 14px 14px; }
+  .coll-tile h4 { font-size: 14px; }
+
+  /* ── journal ── */
+  .journal-wrap { padding: 40px 14px 60px; }
+  .journal-head { margin-bottom: 40px; }
+  .journal-head h1 { font-size: 28px; letter-spacing: 0.04em; }
+  .journal-head .sub { font-size: 14px; margin-top: 10px; }
+  .journal-stats { grid-template-columns: repeat(2, 1fr); margin-bottom: 38px; }
+  .journal-stats .cell { padding: 18px 12px; border-right: 1px solid var(--line); }
+  .journal-stats .cell:nth-child(2n) { border-right: 0; }
+  .journal-stats .cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .journal-stats .v { font-size: 32px; }
+  .journal-stats .l { font-size: 10.5px; letter-spacing: 0.14em; }
+  .journal-section h2 { font-size: 18px; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .journal-section h2 .small { font-size: 10.5px; }
+  .entry { grid-template-columns: 1fr; gap: 10px; padding: 18px 0; }
+  .entry .date {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-top: 0;
+  }
+  .entry .date .month { display: inline; font-size: 18px; margin-bottom: 0; }
+  .entry h4 { font-size: 16px; }
+  .entry .reflection { font-size: 13.5px; line-height: 1.75; }
+  .constellation { grid-template-columns: repeat(2, 1fr); }
+  .con-word { padding: 16px 14px; }
+  .con-word .w { font-size: 17px; }
+  .pattern-card { padding: 20px 18px; }
+  .pattern-card .h { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pattern-card .ttl { font-size: 16px; }
+  .pattern-card .desc { font-size: 13px; line-height: 1.75; }
+
+  /* ── viewer (zoom-in overlay): stack instead of split ── */
+  .viewer {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .viewer .v-canvas { padding: 12px; }
+  .viewer .v-canvas img { max-width: 96%; max-height: 92%; }
+  .viewer .v-side {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 24px 18px 32px;
+    max-height: 45vh;
+  }
+  .viewer .v-close { top: 12px; right: 12px; width: 38px; height: 38px; }
+  .viewer .v-zoomctrl { bottom: 16px; }
+
+  /* ── Tweaks fab + panel ── */
+  .twk-fab { right: 10px; bottom: 10px; padding: 8px 14px; font-size: 11px; }
+  .twk-panel {
+    right: 8px !important;
+    bottom: 8px !important;
+    left: 8px;
+    width: auto;
+    max-height: calc(100vh - 24px);
+  }
 }
