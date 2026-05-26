@@ -92,7 +92,7 @@ function MuseumShell() {
           pastCount={Math.max(0, archiveWorks.length - (todayWork ? 1 : 0))}
           onSaveNotebook={
             todayWork.id
-              ? (answers) => saveNotebookEntry(todayWork.id!, answers)
+              ? (answers) => saveNotebookEntry(todayWork.id!, answers, todayWork.vocabulary)
               : undefined
           }
           onSaveHotspots={

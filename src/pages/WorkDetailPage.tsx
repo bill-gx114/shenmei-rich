@@ -88,7 +88,7 @@ export function WorkDetailPage() {
         onGoArchive={() => nav('/?tab=archive')}
         onBackToToday={() => nav('/')}
         onSaveNotebook={
-          work.id ? (answers) => saveNotebookEntry(work.id!, answers) : undefined
+          work.id ? (answers) => saveNotebookEntry(work.id!, answers, work.vocabulary) : undefined
         }
         onSaveHotspots={
           work.id && editable

@@ -242,7 +242,32 @@ export function useJournal(): LoadState<JournalData> {
   return state;
 }
 
-export async function saveNotebookEntry(workId: string, answers: { chip: string; text: string }[]) {
+/**
+ * Extract keyword hits from notebook answers:
+ *  - every non-empty chip (the user explicitly picked it)
+ *  - every vocabulary word that appears as a substring in any answer text
+ * De-duplicated.
+ */
+function extractKeywords(
+  answers: { chip: string; text: string }[],
+  vocabulary: { word: string }[],
+): string[] {
+  const hits = new Set<string>();
+  for (const a of answers) {
+    if (a.chip && a.chip.trim()) hits.add(a.chip.trim());
+  }
+  const allText = answers.map((a) => a.text || '').join(' ');
+  for (const v of vocabulary) {
+    if (v.word && allText.includes(v.word)) hits.add(v.word);
+  }
+  return [...hits];
+}
+
+export async function saveNotebookEntry(
+  workId: string,
+  answers: { chip: string; text: string }[],
+  vocabulary: { word: string }[] = [],
+) {
   if (!isSupabaseConfigured) return;
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) throw new Error('未登录');
@@ -256,6 +281,25 @@ export async function saveNotebookEntry(workId: string, answers: { chip: string;
     { onConflict: 'owner_id,work_id' },
   );
   if (error) throw error;
+
+  // Replace this user's keyword hits for this work, derived from current answers.
+  // We delete first so editing answers (removing a chip) doesn't leave stale rows.
+  const keywords = extractKeywords(answers, vocabulary);
+  const { error: delErr } = await supabase
+    .from('keyword_uses')
+    .delete()
+    .eq('owner_id', user.id)
+    .eq('work_id', workId);
+  if (delErr) throw delErr;
+  if (keywords.length > 0) {
+    const rows = keywords.map((keyword) => ({
+      owner_id: user.id,
+      work_id: workId,
+      keyword,
+    }));
+    const { error: insErr } = await supabase.from('keyword_uses').insert(rows);
+    if (insErr) throw insErr;
+  }
 }
 
 export async function fetchNotebookEntry(workId: string) {
