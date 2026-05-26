@@ -19,6 +19,7 @@
 import type { Config } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateCuratorPack, VOICE_KEYS } from '../lib/curator.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -88,6 +89,64 @@ function jsonResponse(status: number, body: unknown) {
   });
 }
 
+/**
+ * First-run bootstrap: if seed_works is empty, copy the in-code SEED_WORKS
+ * array into it. After this, the table is the source of truth and the in-code
+ * array is only a fallback if the migration was never applied.
+ */
+async function ensureSeedTablePopulated(supabase: SupabaseClient): Promise<void> {
+  const { count } = await supabase
+    .from('seed_works')
+    .select('id', { count: 'exact', head: true });
+  if ((count ?? 0) > 0) return;
+  const rows = SEED_WORKS.map((s, i) => ({
+    wikipedia_slug: s.wikipediaSlug,
+    wikipedia_lang: s.wikipediaLang,
+    title: s.title,
+    artist: s.artist,
+    artist_romaji: s.artistRomaji,
+    year: s.year,
+    medium: s.medium,
+    size: s.size,
+    series: s.series ?? null,
+    location: s.location,
+    hint: s.hint,
+    source: 'initial',
+    order_index: i,
+  }));
+  await supabase.from('seed_works').insert(rows);
+}
+
+type SeedRow = {
+  wikipedia_slug: string;
+  wikipedia_lang: 'en' | 'zh' | 'ja';
+  title: string;
+  artist: string;
+  artist_romaji: string | null;
+  year: string | null;
+  medium: string | null;
+  size: string | null;
+  series: string | null;
+  location: string | null;
+  hint: string;
+};
+
+function rowToSeed(r: SeedRow): SeedWork {
+  return {
+    wikipediaSlug: r.wikipedia_slug,
+    wikipediaLang: r.wikipedia_lang,
+    title: r.title,
+    artist: r.artist,
+    artistRomaji: r.artist_romaji ?? '',
+    year: r.year ?? '',
+    medium: r.medium ?? '',
+    size: r.size ?? '',
+    series: r.series ?? undefined,
+    location: r.location ?? '',
+    hint: r.hint,
+  };
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
 export default async () => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -124,8 +183,26 @@ export default async () => {
     });
   }
 
-  // 2. Pick today's seed deterministically based on how many global works
-  //    have been published so far.
+  // 2. Make sure the seed table has data (bootstraps from in-code SEED_WORKS
+  //    on the very first run, after migration 0004 created the empty table).
+  await ensureSeedTablePopulated(supabase);
+
+  // Load all seeds, ordered by their original publish order.
+  const { data: seedRows, error: seedErr } = await supabase
+    .from('seed_works')
+    .select('*')
+    .order('order_index', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (seedErr) {
+    return jsonResponse(500, { error: '读取 seed_works 失败', detail: seedErr.message });
+  }
+  if (!seedRows || seedRows.length === 0) {
+    return jsonResponse(500, { error: 'seed_works 表为空，无法挑选作品' });
+  }
+
+  // Pick today's seed deterministically based on how many global works have
+  // been published so far. As new seeds get appended (via extend-seed or
+  // manual SQL), the rotation naturally extends.
   const { count, error: countErr } = await supabase
     .from('works')
     .select('id', { count: 'exact', head: true })
@@ -135,8 +212,8 @@ export default async () => {
   }
 
   const total = count ?? 0;
-  const idx = total % SEED_WORKS.length;
-  const seed = SEED_WORKS[idx];
+  const idx = total % seedRows.length;
+  const seed = rowToSeed(seedRows[idx] as SeedRow);
   const no = String(total + 1).padStart(3, '0');
 
   // 3. Fetch a public-domain image from Wikipedia (best-effort).
