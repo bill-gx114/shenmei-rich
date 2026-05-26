@@ -116,39 +116,57 @@ async function wikiHasImage(slug: string, lang: string): Promise<boolean> {
   }
 }
 
+async function wikiSearchTop(lang: 'en' | 'zh' | 'ja', q: string): Promise<string[]> {
+  try {
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=3&format=json&origin=*&srsearch=${encodeURIComponent(q)}`;
+    const r = await fetch(url, { headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' } });
+    if (!r.ok) return [];
+    const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+    return (d.query?.search ?? []).map((s) => s.title.replace(/ /g, '_'));
+  } catch {
+    return [];
+  }
+}
+
 // Find a working (slug, lang) for a candidate title — tries the AI's guess
-// first, then a few common variations + the Wikipedia search API.
+// first, then multi-lingual Wikipedia search with several query forms.
 async function findWorkingSlug(
   title: string,
   artist: string,
+  artistRomaji: string,
   hintedSlug: string,
   hintedLang: 'en' | 'zh' | 'ja',
 ): Promise<{ slug: string; lang: 'en' | 'zh' | 'ja' } | null> {
-  const candidates: Array<{ slug: string; lang: 'en' | 'zh' | 'ja' }> = [];
-  // 1. As-given
-  candidates.push({ slug: hintedSlug, lang: hintedLang });
-  // 2. Underscores normalized
-  const underscored = hintedSlug.replace(/ /g, '_');
-  if (underscored !== hintedSlug) candidates.push({ slug: underscored, lang: hintedLang });
-  // 3. The other two languages with the same slug
+  const tried: Array<{ slug: string; lang: 'en' | 'zh' | 'ja' }> = [];
+  const push = (slug: string, lang: 'en' | 'zh' | 'ja') => {
+    if (!slug) return;
+    if (tried.find((c) => c.slug === slug && c.lang === lang)) return;
+    tried.push({ slug, lang });
+  };
+
+  // 1. AI's guess + simple variations.
+  push(hintedSlug, hintedLang);
+  push(hintedSlug.replace(/ /g, '_'), hintedLang);
   for (const lang of (['en', 'zh', 'ja'] as const).filter((l) => l !== hintedLang)) {
-    candidates.push({ slug: hintedSlug, lang });
-  }
-  // 4. Search-based fallback in en (most reliable for art)
-  try {
-    const q = `${title} ${artist}`;
-    const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(q)}`;
-    const r = await fetch(url, { headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' } });
-    if (r.ok) {
-      const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
-      const found = d.query?.search?.[0]?.title;
-      if (found) candidates.push({ slug: found.replace(/ /g, '_'), lang: 'en' });
-    }
-  } catch {
-    // ignore
+    push(hintedSlug, lang);
   }
 
-  for (const c of candidates) {
+  // 2. Search fallback — try multiple query forms in zh + en.
+  //    Chinese names are best resolved in zh.wp; English/romaji in en.wp.
+  const queries: Array<{ lang: 'en' | 'zh' | 'ja'; q: string }> = [];
+  if (title) queries.push({ lang: 'zh', q: `${title} ${artist}`.trim() });
+  if (title) queries.push({ lang: 'zh', q: title });
+  if (artistRomaji) queries.push({ lang: 'en', q: `${artistRomaji} ${title}`.trim() });
+  if (artistRomaji && artist) queries.push({ lang: 'en', q: `${artistRomaji}` });
+
+  for (const { lang, q } of queries) {
+    if (!q.trim()) continue;
+    const results = await wikiSearchTop(lang, q);
+    for (const slug of results) push(slug, lang);
+  }
+
+  // 3. Probe each candidate for an actual image.
+  for (const c of tried) {
     if (await wikiHasImage(c.slug, c.lang)) return c;
   }
   return null;
@@ -248,7 +266,13 @@ export default async () => {
       console.log(`[extend-seed] REJECT ${c.title}: duplicate of existing`);
       continue;
     }
-    const resolved = await findWorkingSlug(c.title, c.artist, c.wikipediaSlug, c.wikipediaLang);
+    const resolved = await findWorkingSlug(
+      c.title,
+      c.artist,
+      c.artistRomaji,
+      c.wikipediaSlug,
+      c.wikipediaLang,
+    );
     if (!resolved) {
       rejected.push({
         title: c.title,
