@@ -13,6 +13,8 @@
 
 import type { Config } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { SEED_WORKS } from '../lib/seed-works.js';
 
 // ── DeepSeek prompt ──────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `你是"审美日课"的策展人，正在为每日展览扩充选品池。
@@ -114,6 +116,71 @@ async function wikiHasImage(slug: string, lang: string): Promise<boolean> {
   }
 }
 
+// Find a working (slug, lang) for a candidate title — tries the AI's guess
+// first, then a few common variations + the Wikipedia search API.
+async function findWorkingSlug(
+  title: string,
+  artist: string,
+  hintedSlug: string,
+  hintedLang: 'en' | 'zh' | 'ja',
+): Promise<{ slug: string; lang: 'en' | 'zh' | 'ja' } | null> {
+  const candidates: Array<{ slug: string; lang: 'en' | 'zh' | 'ja' }> = [];
+  // 1. As-given
+  candidates.push({ slug: hintedSlug, lang: hintedLang });
+  // 2. Underscores normalized
+  const underscored = hintedSlug.replace(/ /g, '_');
+  if (underscored !== hintedSlug) candidates.push({ slug: underscored, lang: hintedLang });
+  // 3. The other two languages with the same slug
+  for (const lang of (['en', 'zh', 'ja'] as const).filter((l) => l !== hintedLang)) {
+    candidates.push({ slug: hintedSlug, lang });
+  }
+  // 4. Search-based fallback in en (most reliable for art)
+  try {
+    const q = `${title} ${artist}`;
+    const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(q)}`;
+    const r = await fetch(url, { headers: { 'User-Agent': '审美日课/1.0 (https://github.com/)' } });
+    if (r.ok) {
+      const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+      const found = d.query?.search?.[0]?.title;
+      if (found) candidates.push({ slug: found.replace(/ /g, '_'), lang: 'en' });
+    }
+  } catch {
+    // ignore
+  }
+
+  for (const c of candidates) {
+    if (await wikiHasImage(c.slug, c.lang)) return c;
+  }
+  return null;
+}
+
+async function ensureSeedTablePopulated(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase.from('seed_works').select('id', { count: 'exact', head: true });
+  if ((count ?? 0) > 0) return 0;
+  const rows = SEED_WORKS.map((s, i) => ({
+    wikipedia_slug: s.wikipediaSlug,
+    wikipedia_lang: s.wikipediaLang,
+    title: s.title,
+    artist: s.artist,
+    artist_romaji: s.artistRomaji,
+    year: s.year,
+    medium: s.medium,
+    size: s.size,
+    series: s.series ?? null,
+    location: s.location,
+    hint: s.hint,
+    source: 'initial',
+    order_index: i,
+  }));
+  const { error } = await supabase.from('seed_works').insert(rows);
+  if (error) {
+    console.error('[extend-seed] bootstrap insert failed:', error.message);
+    return 0;
+  }
+  console.log(`[extend-seed] bootstrapped seed_works with ${rows.length} initial rows`);
+  return rows.length;
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
 export default async () => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -125,6 +192,12 @@ export default async () => {
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // 0. If seed_works is empty (fresh setup), bootstrap with the initial 30
+  //    first — otherwise DeepSeek will happily re-suggest works that the
+  //    daily-curator will later try to insert from the in-code SEED_WORKS,
+  //    causing duplicate-key conflicts.
+  const bootstrapped = await ensureSeedTablePopulated(supabase);
 
   // 1. Read all existing seeds (title + artist for dedup + prompt context).
   const { data: existing, error: readErr } = await supabase
@@ -139,6 +212,7 @@ export default async () => {
     .map((r) => `- ${r.title} — ${r.artist}`)
     .join('\n');
   const nextOrderIndex = ((existing ?? []).at(-1)?.order_index ?? -1) + 1;
+  console.log(`[extend-seed] existing seeds: ${existing?.length ?? 0}, next index: ${nextOrderIndex}`);
 
   // 2. Ask DeepSeek for candidates.
   let candidates: Candidate[];
@@ -152,6 +226,7 @@ export default async () => {
   }
 
   // 3. Validate each candidate (not duplicate, Wikipedia has image).
+  console.log(`[extend-seed] DeepSeek returned ${candidates.length} candidates`);
   const accepted: Array<Candidate & { order_index: number }> = [];
   const rejected: Array<{ title: string; reason: string }> = [];
   let nextIdx = nextOrderIndex;
@@ -159,35 +234,46 @@ export default async () => {
   for (const c of candidates) {
     if (!c.title || !c.artist || !c.wikipediaSlug || !c.wikipediaLang || !c.hint) {
       rejected.push({ title: c.title ?? '(unknown)', reason: 'missing required field' });
+      console.log(`[extend-seed] REJECT ${c.title ?? '(unknown)'}: missing field`);
       continue;
     }
     if (!['en', 'zh', 'ja'].includes(c.wikipediaLang)) {
       rejected.push({ title: c.title, reason: `unsupported lang: ${c.wikipediaLang}` });
+      console.log(`[extend-seed] REJECT ${c.title}: bad lang ${c.wikipediaLang}`);
       continue;
     }
     const key = `${c.title}|${c.artist}`;
     if (existingKeys.has(key)) {
       rejected.push({ title: c.title, reason: 'already in seed list' });
+      console.log(`[extend-seed] REJECT ${c.title}: duplicate of existing`);
       continue;
     }
-    const hasImage = await wikiHasImage(c.wikipediaSlug, c.wikipediaLang);
-    if (!hasImage) {
-      // Try without underscores (DeepSeek sometimes returns "Mona Lisa" instead of "Mona_Lisa")
-      const altSlug = c.wikipediaSlug.replace(/ /g, '_');
-      const altHasImage = altSlug !== c.wikipediaSlug && (await wikiHasImage(altSlug, c.wikipediaLang));
-      if (!altHasImage) {
-        rejected.push({ title: c.title, reason: 'Wikipedia 找不到图' });
-        continue;
-      }
-      c.wikipediaSlug = altSlug;
+    const resolved = await findWorkingSlug(c.title, c.artist, c.wikipediaSlug, c.wikipediaLang);
+    if (!resolved) {
+      rejected.push({
+        title: c.title,
+        reason: `Wikipedia 找不到图（tried slug=${c.wikipediaSlug} lang=${c.wikipediaLang} + search fallback）`,
+      });
+      console.log(`[extend-seed] REJECT ${c.title}: no Wikipedia image found`);
+      continue;
     }
-    existingKeys.add(key); // guard against duplicates within this batch too
+    if (resolved.slug !== c.wikipediaSlug || resolved.lang !== c.wikipediaLang) {
+      console.log(
+        `[extend-seed] resolved ${c.title}: ${c.wikipediaLang}/${c.wikipediaSlug} → ${resolved.lang}/${resolved.slug}`,
+      );
+    }
+    c.wikipediaSlug = resolved.slug;
+    c.wikipediaLang = resolved.lang;
+    existingKeys.add(key);
     accepted.push({ ...c, order_index: nextIdx++ });
+    console.log(`[extend-seed] ACCEPT ${c.title} (${c.artist})`);
   }
 
   if (accepted.length === 0) {
+    console.log(`[extend-seed] DONE bootstrapped=${bootstrapped} added=0 rejected=${rejected.length}`);
     return jsonResponse(200, {
       ok: true,
+      bootstrapped,
       added: 0,
       rejected,
       message: '本次没有合格的新候选',
@@ -219,8 +305,12 @@ export default async () => {
     });
   }
 
+  console.log(
+    `[extend-seed] DONE bootstrapped=${bootstrapped} added=${accepted.length} rejected=${rejected.length}`,
+  );
   return jsonResponse(200, {
     ok: true,
+    bootstrapped,
     added: accepted.length,
     titles: accepted.map((c) => c.title),
     rejected,
