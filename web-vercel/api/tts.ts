@@ -22,7 +22,7 @@ const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
 // a Sec-MS-GEC token = sha256(ticks||TRUSTED_CLIENT_TOKEN) where ticks is the
 // Win epoch nanosecond ticks rounded to a 5-min boundary. Algorithm comes
 // straight from python edge-tts/drm.py.
-const SEC_MS_GEC_VERSION = '1-130.0.2849.68';
+const SEC_MS_GEC_VERSION = '1-132.0.2957.140';
 const WIN_EPOCH_S = 11_644_473_600;
 
 function secMsGecToken(): string {
@@ -55,10 +55,12 @@ function buildWsUrl(): string {
 
 const WS_HEADERS = {
   'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0',
   Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+  Pragma: 'no-cache',
+  'Cache-Control': 'no-cache',
   'Accept-Encoding': 'gzip, deflate, br',
-  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
 };
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
