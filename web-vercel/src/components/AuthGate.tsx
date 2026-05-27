@@ -1,14 +1,18 @@
 import type { ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
-import { LoginPage } from '../pages/LoginPage';
 
 /**
- * Wraps the app. When Supabase env vars are missing, falls through to the
- * children (lets the mock-data shell still render in dev). When configured,
- * blocks anonymous users with the login page.
+ * Route-level gate. Use only for routes that require an authenticated user
+ * (e.g. /new admin entry form). Anonymous visitors get bounced to /login
+ * with a return-to query string so they come back after signing in.
+ *
+ * The rest of the app (today's exhibit, archive grid, work detail) renders
+ * for anonymous users too — RLS lets them read global rows.
  */
-export function AuthGate({ children }: { children: ReactNode }) {
+export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, configured } = useSession();
+  const location = useLocation();
 
   if (!configured) return <>{children}</>;
 
@@ -31,7 +35,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!session) return <LoginPage />;
+  if (!session) {
+    const returnTo = location.pathname + location.search;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+  }
 
   return <>{children}</>;
 }

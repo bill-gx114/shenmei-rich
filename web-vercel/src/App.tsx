@@ -3,7 +3,8 @@ import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'reac
 import { Signage } from './components/Signage';
 import { Viewer } from './components/Viewer';
 import { TweaksPanel, TweakSection, TweakSlider, TweakRadio, TweakToggle } from './components/TweaksPanel';
-import { AuthGate } from './components/AuthGate';
+import { RequireAuth } from './components/AuthGate';
+import { LoginPage } from './pages/LoginPage';
 import { TodayPage } from './pages/TodayPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { JournalPage } from './pages/JournalPage';
@@ -82,7 +83,7 @@ function MuseumShell() {
         room={todayWork?.room ?? '— 暂未开馆 —'}
         visitorNo={todayWork?.no ?? '000'}
         date={formatDate(new Date())}
-        onNewWork={configured ? () => nav('/new') : undefined}
+        onNewWork={configured && session ? () => nav('/new') : undefined}
         onLogout={
           configured && session
             ? async () => {
@@ -90,6 +91,7 @@ function MuseumShell() {
               }
             : undefined
         }
+        onLogin={configured && !session ? () => nav('/login?returnTo=/') : undefined}
       />
 
       {tab === 'today' && (todayWork ? (
@@ -101,18 +103,22 @@ function MuseumShell() {
           pastCount={Math.max(0, archiveWorks.length - (todayWork ? 1 : 0))}
           onSaveNotebook={
             todayWork.id
-              ? (answers) => saveNotebookEntry(todayWork.id!, answers, todayWork.vocabulary)
+              ? session
+                ? (answers) => saveNotebookEntry(todayWork.id!, answers, todayWork.vocabulary)
+                : () => nav('/login?returnTo=/')
               : undefined
           }
           notebookInitial={notebookEntry}
           onNotebookSaved={notebookEntry.reload}
           pinned={pin.pinned}
           onTogglePin={
-            todayWork.id && session
-              ? async () => {
-                  await pin.toggle();
-                  archive.refresh();
-                }
+            todayWork.id
+              ? session
+                ? async () => {
+                    await pin.toggle();
+                    archive.refresh();
+                  }
+                : () => nav('/login?returnTo=/')
               : undefined
           }
           onSaveHotspots={
@@ -283,14 +289,20 @@ export default function App() {
     <TweaksProvider>
       <TweaksSideEffects />
       <BrowserRouter>
-        <AuthGate>
-          <Routes>
-            <Route path="/" element={<MuseumShell />} />
-            <Route path="/new" element={<AdminNewWorkPage />} />
-            <Route path="/work/:id" element={<WorkDetailPage />} />
-          </Routes>
-          <AppTweaks />
-        </AuthGate>
+        <Routes>
+          <Route path="/" element={<MuseumShell />} />
+          <Route path="/work/:id" element={<WorkDetailPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/new"
+            element={
+              <RequireAuth>
+                <AdminNewWorkPage />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+        <AppTweaks />
       </BrowserRouter>
     </TweaksProvider>
   );

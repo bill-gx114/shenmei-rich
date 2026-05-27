@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useSession } from '../hooks/useSession';
 
 type Mode = 'signin' | 'signup';
 
@@ -35,6 +37,16 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo') || '/';
+  const nav = useNavigate();
+  const { session } = useSession();
+
+  // Once signed in, bounce back to wherever the user came from.
+  useEffect(() => {
+    if (session) nav(returnTo, { replace: true });
+  }, [session, returnTo, nav]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +86,7 @@ export function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: window.location.origin + returnTo },
       });
       if (error) throw error;
       // Browser navigates away to GitHub OAuth; no further state needed.

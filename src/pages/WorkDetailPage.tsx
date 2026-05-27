@@ -102,15 +102,21 @@ export function WorkDetailPage() {
         onNotebookSaved={notebookEntry.reload}
         pinned={pin.pinned}
         onTogglePin={
-          work.id && session
-            ? async () => {
-                await pin.toggle();
-                archive.refresh();
-              }
+          work.id
+            ? session
+              ? async () => {
+                  await pin.toggle();
+                  archive.refresh();
+                }
+              : () => nav(`/login?returnTo=/work/${work.id}`)
             : undefined
         }
         onSaveNotebook={
-          work.id ? (answers) => saveNotebookEntry(work.id!, answers, work.vocabulary) : undefined
+          work.id
+            ? session
+              ? (answers) => saveNotebookEntry(work.id!, answers, work.vocabulary)
+              : () => nav(`/login?returnTo=/work/${work.id}`)
+            : undefined
         }
         onSaveHotspots={
           work.id && editable

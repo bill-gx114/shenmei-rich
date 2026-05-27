@@ -7,6 +7,8 @@ type Props = {
   /** When provided, replaces the static "visitor count" pill with action buttons. */
   onNewWork?: () => void;
   onLogout?: () => void;
+  /** Shown when user is anonymous — typically opens the login page. */
+  onLogin?: () => void;
 };
 
 const TABS = [
@@ -28,8 +30,8 @@ const ACTION_BTN: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-export function Signage({ tab, onTab, room, visitorNo, date, onNewWork, onLogout }: Props) {
-  const showActions = Boolean(onNewWork || onLogout);
+export function Signage({ tab, onTab, room, visitorNo, date, onNewWork, onLogout, onLogin }: Props) {
+  const showActions = Boolean(onNewWork || onLogout || onLogin);
   return (
     <header className="signage">
       <div className="signage-l">
@@ -57,6 +59,11 @@ export function Signage({ tab, onTab, room, visitorNo, date, onNewWork, onLogout
             {onLogout && (
               <button style={ACTION_BTN} onClick={onLogout}>
                 退出
+              </button>
+            )}
+            {onLogin && (
+              <button style={ACTION_BTN} onClick={onLogin}>
+                登录
               </button>
             )}
           </>
