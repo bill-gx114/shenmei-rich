@@ -327,8 +327,17 @@ button { font-family: inherit; cursor: pointer; }
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
+}
+/* Real photographs (Wikipedia etc.): fit whole image so we don't crop the
+   subject. The frame may letterbox top/bottom or left/right — that's fine,
+   it reads as a real museum mat. */
+.frame .canvas img {
+  object-fit: contain;
+}
+/* Stylized SVG fallback (Red Fuji): designed to fill, keep cover. */
+.frame .canvas svg.art {
+  object-fit: cover;
 }
 
 .frame .plate {
