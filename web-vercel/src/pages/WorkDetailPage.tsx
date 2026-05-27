@@ -29,6 +29,10 @@ export function WorkDetailPage() {
   const [tweaks] = useTweaks();
   const [viewerOpen, setViewerOpen] = useState(false);
   const { session } = useSession();
+  // IMPORTANT: hook must be called unconditionally — must not move below the
+  // early-return branches, or hook order changes between renders and React
+  // throws.
+  const notebookEntry = useNotebookEntry(work?.id);
 
   if (loading) {
     return (
@@ -76,7 +80,6 @@ export function WorkDetailPage() {
   const pastCount = Math.max(0, archiveWorks.length - 1);
 
   const editable = canEditHotspots(session?.user.id, session?.user.email ?? undefined, work);
-  const notebookEntry = useNotebookEntry(work.id);
 
   return (
     <>
