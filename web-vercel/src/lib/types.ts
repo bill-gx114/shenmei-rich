@@ -1,0 +1,75 @@
+export type Hotspot = { x: number; y: number; label: string; detail: string };
+
+export type AudioLine = { t: number; text: string };
+
+/**
+ * Multi-voice script. Each voice has its own parallel timeline. Frontend
+ * picks the variant matching the user's narratorVoice tweak; if the chosen
+ * voice has no lines, AudioGuide falls back to '清·克制'.
+ */
+export type AudioGuideData = {
+  duration: number;
+  variants: Record<string, AudioLine[]>;
+};
+
+export type Question = { q: string; hint: string; options: string[] };
+
+export type VocabularyItem = { word: string; note: string; isNew: boolean };
+
+export type Work = {
+  id?: string;
+  /** null = global daily work (system-published); uuid = personal */
+  ownerId?: string | null;
+  no: string;
+  total: number;
+  title: string;
+  artist: string;
+  artistRomaji: string;
+  year: string;
+  medium: string;
+  size: string;
+  series: string;
+  location: string;
+  room: string;
+  shortLabel: string;
+  image: string;
+  hotspots: Hotspot[];
+  audioGuide: AudioGuideData;
+  questions: Question[];
+  vocabulary: VocabularyItem[];
+};
+
+export type ArchiveWork = {
+  id?: string;
+  no: string;
+  date: string;
+  title: string;
+  artist: string;
+  img: string;
+  span: number;
+  pinned: boolean;
+  keywords: string[];
+  reflection: string;
+};
+
+export type Pattern = {
+  title: string;
+  freq: string;
+  desc: string;
+  from: string;
+};
+
+export type ConstellationWord = {
+  w: string;
+  count: number;
+  from: string;
+  isNew?: boolean;
+};
+
+export type Tweaks = {
+  narratorVoice: string;
+  spotlight: number;
+  showHotspotsByDefault: boolean;
+  frame: 'mat' | 'thin' | 'none';
+  textScale: number;
+};
