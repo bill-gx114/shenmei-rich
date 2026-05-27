@@ -35,7 +35,8 @@
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key（前端用） |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role（函数用，跳 RLS） |
 | `DEEPSEEK_API_KEY` | DeepSeek API key（curator-draft / daily-curator / extend-seed 用） |
-| `ADMIN_EMAIL` | 你的登录邮箱（编辑全局作品看点权限） |
+| `ADMIN_EMAIL` | 你的登录邮箱（后端 save-hotspots 函数的权限检查） |
+| `VITE_ADMIN_EMAIL` | 同上，但前端需要这个（用来判断是否显示编辑按钮）。**两个都要配，值一样**。 |
 
 三个 Environment 都勾上：Production / Preview / Development。
 
