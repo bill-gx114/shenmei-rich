@@ -1,12 +1,17 @@
 // POST /api/tts  Body: { text, voice? }  → { url, cached }
 //
 // Proxies Microsoft Edge's neural TTS and caches each result in Supabase
-// Storage by sha256(voice|text). Runs on Vercel Node runtime so we can use
-// the `ws` package and set the custom User-Agent / Origin headers that
-// Microsoft's endpoint actually accepts (Edge runtime's WebSocket constructor
-// doesn't expose headers, which made the endpoint reject the connection).
+// Storage by sha256(voice|text). Vercel Node serverless runtime — uses the
+// `ws` package and sets the custom User-Agent / Origin headers Microsoft's
+// endpoint requires.
+//
+// Uses the legacy (req, res) signature because Vercel's auto-detection of
+// the Web-Fetch (Request, Response) form was leaving the function hanging
+// in our case (cold-start timed out at 15s). The handler below sends via
+// res.end() so the request lifecycle terminates correctly.
 
 import crypto from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 
@@ -14,32 +19,44 @@ const BUCKET = 'tts-cache';
 const DEFAULT_VOICE = 'zh-CN-XiaoxiaoNeural';
 const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
 const WSS_URL = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`;
-// These two headers are what the public clients (python edge-tts, msedge-tts,
-// etc.) send. Without them MS bing.com refuses the websocket handshake.
 const WS_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
   Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
 };
 
-function jsonResp(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
+function sendJson(res: ServerResponse, status: number, body: unknown) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify(body));
 }
 
 function uuid32(): string {
   return crypto.randomBytes(16).toString('hex');
 }
 
-/**
- * Connect to Edge TTS over WSS and stream MP3 bytes back. Protocol:
- *  1. send speech.config (JSON, audio output format)
- *  2. send SSML (text wrapped in <voice name=…>)
- *  3. receive binary frames: [2B headerLen BE][headers][audio bytes]
- *  4. receive text frame containing Path:turn.end → done
- */
+async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.setEncoding('utf-8');
+    req.on('data', (chunk: string) => {
+      raw += chunk;
+      if (raw.length > 8192) {
+        reject(new Error('payload too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(raw || '{}') as T);
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    });
+    req.on('error', (e) => reject(e));
+  });
+}
+
 function synthesize(voice: string, text: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const reqId = uuid32();
@@ -115,24 +132,27 @@ function synthesize(voice: string, text: string): Promise<Buffer> {
   });
 }
 
-export default async function handler(req: Request) {
-  if (req.method !== 'POST') return jsonResp(405, { error: 'Method not allowed' });
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
 
   let body: { text?: string; voice?: string };
   try {
-    body = (await req.json()) as { text?: string; voice?: string };
-  } catch {
-    return jsonResp(400, { error: '请求体不是合法 JSON' });
+    body = await readJsonBody<{ text?: string; voice?: string }>(req);
+  } catch (e) {
+    return sendJson(res, 400, {
+      error: '请求体不是合法 JSON',
+      detail: e instanceof Error ? e.message : String(e),
+    });
   }
   const text = (body.text ?? '').trim();
-  if (!text) return jsonResp(400, { error: 'missing text' });
-  if (text.length > 1000) return jsonResp(400, { error: 'text too long (>1000)' });
+  if (!text) return sendJson(res, 400, { error: 'missing text' });
+  if (text.length > 1000) return sendJson(res, 400, { error: 'text too long (>1000)' });
   const voice = body.voice || DEFAULT_VOICE;
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
-    return jsonResp(500, { error: 'Supabase 凭据未配置' });
+    return sendJson(res, 500, { error: 'Supabase 凭据未配置' });
   }
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -147,26 +167,30 @@ export default async function handler(req: Request) {
     .from(BUCKET)
     .list(voice, { search: `${hash}.mp3`, limit: 1 });
   if ((existing ?? []).some((f) => f.name === `${hash}.mp3`)) {
-    return jsonResp(200, { url: publicUrl, cached: true });
+    return sendJson(res, 200, { url: publicUrl, cached: true });
   }
 
   let buf: Buffer;
   try {
     buf = await synthesize(voice, text);
   } catch (e) {
-    return jsonResp(502, {
+    return sendJson(res, 502, {
       error: 'Edge TTS 合成失败',
       detail: e instanceof Error ? e.message : String(e),
     });
   }
-  if (!buf.length) return jsonResp(502, { error: 'Edge TTS 返回空音频' });
+  if (!buf.length) return sendJson(res, 502, { error: 'Edge TTS 返回空音频' });
 
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
     .upload(path, buf, { contentType: 'audio/mpeg', upsert: true });
   if (upErr) {
-    return jsonResp(500, { error: '写 Supabase Storage 失败', detail: upErr.message });
+    return sendJson(res, 500, { error: '写 Supabase Storage 失败', detail: upErr.message });
   }
 
-  return jsonResp(200, { url: publicUrl, cached: false });
+  return sendJson(res, 200, { url: publicUrl, cached: false });
 }
+
+export const config = {
+  maxDuration: 30,
+};
