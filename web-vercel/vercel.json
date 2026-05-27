@@ -7,7 +7,7 @@
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [
-    { "path": "/api/daily-curator", "schedule": "0 0 * * *" },
-    { "path": "/api/extend-seed", "schedule": "0 2 1 * *" }
+    { "path": "/api/daily-curator", "schedule": "0 16 * * *" },
+    { "path": "/api/extend-seed", "schedule": "0 18 1 * *" }
   ]
 }
