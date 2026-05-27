@@ -18,11 +18,42 @@ import WebSocket from 'ws';
 const BUCKET = 'tts-cache';
 const DEFAULT_VOICE = 'zh-CN-XiaoxiaoNeural';
 const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-const WSS_URL = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`;
+// MS added an anti-abuse handshake in mid-2024. Each ws connect now requires
+// a Sec-MS-GEC token = sha256(ticks||TRUSTED_CLIENT_TOKEN) where ticks is the
+// Win epoch nanosecond ticks rounded to a 5-min boundary. Algorithm comes
+// straight from python edge-tts/drm.py.
+const SEC_MS_GEC_VERSION = '1-130.0.2849.68';
+const WIN_EPOCH_S = 11_644_473_600;
+
+function secMsGecToken(): string {
+  // 100-ns intervals (Windows ticks) since 1601-01-01 UTC, rounded to nearest
+  // 5-minute window so the token is stable across a short request span.
+  const seconds = Date.now() / 1000 + WIN_EPOCH_S;
+  let ticks = BigInt(Math.floor(seconds * 1e9 / 100));
+  const window = 3_000_000_000n; // 5 min in 100-ns units
+  ticks -= ticks % window;
+  const payload = `${ticks.toString()}${TRUSTED_CLIENT_TOKEN}`;
+  return crypto.createHash('sha256').update(payload).digest('hex').toUpperCase();
+}
+
+function buildWsUrl(): string {
+  const connectionId = crypto.randomBytes(16).toString('hex');
+  const params = new URLSearchParams({
+    TrustedClientToken: TRUSTED_CLIENT_TOKEN,
+    'Sec-MS-GEC': secMsGecToken(),
+    'Sec-MS-GEC-Version': SEC_MS_GEC_VERSION,
+    ConnectionId: connectionId,
+  });
+  return `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?${params.toString()}`;
+}
+
 const WS_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
   Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+  'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
 };
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
@@ -60,7 +91,7 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
 function synthesize(voice: string, text: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const reqId = uuid32();
-    const ws = new WebSocket(WSS_URL, { headers: WS_HEADERS });
+    const ws = new WebSocket(buildWsUrl(), { headers: WS_HEADERS });
     const chunks: Buffer[] = [];
     let settled = false;
 
