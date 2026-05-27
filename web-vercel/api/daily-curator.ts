@@ -116,6 +116,7 @@ async function ensureSeedTablePopulated(supabase: SupabaseClient): Promise<void>
     hint: s.hint,
     source: 'initial',
     order_index: i,
+    region: s.region,
   }));
   await supabase.from('seed_works').insert(rows);
 }
@@ -132,6 +133,7 @@ type SeedRow = {
   series: string | null;
   location: string | null;
   hint: string;
+  region: 'east' | 'west' | null;
 };
 
 function rowToSeed(r: SeedRow): SeedWork {
@@ -147,6 +149,7 @@ function rowToSeed(r: SeedRow): SeedWork {
     series: r.series ?? undefined,
     location: r.location ?? '',
     hint: r.hint,
+    region: r.region ?? 'west',
   };
 }
 
@@ -252,6 +255,7 @@ export default async () => {
       size: seed.size,
       series: seed.series ?? null,
       location: seed.location,
+      region: seed.region,
       room: `今日展厅 · No. ${no}`,
       short_label: pack.shortLabel,
       curator_note: pack.curatorNote ?? null,

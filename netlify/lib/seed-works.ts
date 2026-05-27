@@ -23,6 +23,8 @@ export type SeedWork = {
   location: string;
   /** One-line prompt seed passed to DeepSeek along with title/artist. */
   hint: string;
+  /** Coarse tradition tag for Archive filter chips. */
+  region: 'east' | 'west';
 };
 
 export const SEED_WORKS: SeedWork[] = [
@@ -38,6 +40,7 @@ export const SEED_WORKS: SeedWork[] = [
     series: '《富岳三十六景》',
     location: '现存大英博物馆等',
     hint: '夏末清晨的几分钟里富士山被南风染成赤铜色——北斋用最少元素捕获了一次"气象"',
+    region: 'east',
   },
   {
     wikipediaSlug: 'Mona_Lisa',
@@ -50,6 +53,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '77 × 53 cm',
     location: '卢浮宫',
     hint: '微笑里的不确定性来自 sfumato（晕涂法）——边缘没有线，只有光气',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Starry_Night',
@@ -62,6 +66,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '73.7 × 92.1 cm',
     location: '纽约现代艺术博物馆',
     hint: '夜空被画成一个动力学系统——卷云像漩涡，星像漩涡的核',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Great_Wave_off_Kanagawa',
@@ -75,6 +80,7 @@ export const SEED_WORKS: SeedWork[] = [
     series: '《富岳三十六景》',
     location: '大英博物馆等',
     hint: '前景的巨浪被放大到几乎吞掉富士——尺度是被故意搞错的',
+    region: 'east',
   },
   {
     wikipediaSlug: 'Girl_with_a_Pearl_Earring',
@@ -87,6 +93,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '44.5 × 39 cm',
     location: '海牙莫瑞泰斯皇家美术馆',
     hint: '一个回眸的瞬间——头巾的群青和耳环的高光是画面里仅有的"亮"',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Scream',
@@ -99,6 +106,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '91 × 73.5 cm',
     location: '奥斯陆国家美术馆',
     hint: '不是人在喊，是天空和大地在喊，人物被它们裹挟',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Liberty_Leading_the_People',
@@ -111,6 +119,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '260 × 325 cm',
     location: '卢浮宫',
     hint: '画里同时存在写实人物和神话女神——这种"调换比例"是浪漫主义的发明',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Birth_of_Venus',
@@ -123,6 +132,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '172.5 × 278.9 cm',
     location: '佛罗伦萨乌菲兹美术馆',
     hint: '人物像从浮雕里走出来——线条比体积重要',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_School_of_Athens',
@@ -135,6 +145,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '500 × 770 cm',
     location: '梵蒂冈使徒宫',
     hint: '透视把所有人都引向中心两位——柏拉图与亚里士多德',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Night_Watch',
@@ -147,6 +158,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '363 × 437 cm',
     location: '阿姆斯特丹国立博物馆',
     hint: '集体肖像被处理成戏剧场景——光不是均匀的，是聚光的',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Impression,_Sunrise',
@@ -159,6 +171,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '48 × 63 cm',
     location: '巴黎玛摩丹美术馆',
     hint: '橙色的太阳和灰蓝的港口——明度几乎相同，黑白复印就消失了',
+    region: 'west',
   },
   {
     wikipediaSlug: 'A_Sunday_on_La_Grande_Jatte',
@@ -171,6 +184,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '207.5 × 308.1 cm',
     location: '芝加哥艺术博物馆',
     hint: '颜色不是混在调色板上，是混在眼睛里——这是科学方法',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Persistence_of_Memory',
@@ -183,6 +197,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '24.1 × 33 cm',
     location: '纽约现代艺术博物馆',
     hint: '只有时间是软的——其它一切：地平线、岩石、桌子，都被画得很硬',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Guernica_(Picasso)',
@@ -195,6 +210,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '349.3 × 776.6 cm',
     location: '马德里索菲娅王后博物馆',
     hint: '只有黑白灰——彩色会让灾难变好看',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Nighthawks',
@@ -207,6 +223,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '84.1 × 152.4 cm',
     location: '芝加哥艺术博物馆',
     hint: '没有人在交谈——四个人，四种孤独，被荧光灯照亮',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Composition_with_Red,_Blue_and_Yellow',
@@ -219,6 +236,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '46 × 46 cm',
     location: '苏黎世美术馆',
     hint: '只有三原色和黑色——但色块大小不等，画面就有了节奏',
+    region: 'west',
   },
   {
     wikipediaSlug: 'American_Gothic',
@@ -231,6 +249,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '78 × 65.3 cm',
     location: '芝加哥艺术博物馆',
     hint: '叉子的三齿和窗框的尖拱——画面里所有"垂直"在互相回应',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Water_Lilies_(Monet_series)',
@@ -244,6 +263,7 @@ export const SEED_WORKS: SeedWork[] = [
     series: '《睡莲》系列',
     location: '巴黎橘园美术馆等',
     hint: '没有天空也没有岸——观者悬在水面之上',
+    region: 'west',
   },
   {
     wikipediaSlug: 'The_Basket_of_Apples',
@@ -256,6 +276,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '65 × 80 cm',
     location: '芝加哥艺术博物馆',
     hint: '桌沿不在一条线上——塞尚有意把视点错位，让平面有体积',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Sunflowers_(Van_Gogh_series)',
@@ -269,6 +290,7 @@ export const SEED_WORKS: SeedWork[] = [
     series: '《向日葵》系列',
     location: '伦敦国家美术馆等',
     hint: '黄色压满整个画面——梵高用单一色相做整张画',
+    region: 'west',
   },
   {
     wikipediaSlug: '富春山居图',
@@ -281,6 +303,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '33 × 636.9 cm（合卷）',
     location: '台北故宫博物院 · 浙江省博物馆（分藏）',
     hint: '一卷展开三百年的退隐——皴法极简，山水里几乎没人',
+    region: 'east',
   },
   {
     wikipediaSlug: '千里江山图',
@@ -293,6 +316,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '51.5 × 1191.5 cm',
     location: '北京故宫博物院',
     hint: '十八岁画青绿山水——天才的画里没有犹豫',
+    region: 'east',
   },
   {
     wikipediaSlug: '清明上河图',
@@ -305,6 +329,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '24.8 × 528 cm',
     location: '北京故宫博物院',
     hint: '一卷里五百多人——每个人都在做自己的事，没有"主角"',
+    region: 'east',
   },
   {
     wikipediaSlug: '韩熙载夜宴图',
@@ -317,6 +342,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '28.7 × 335.5 cm',
     location: '北京故宫博物院',
     hint: '同一个人在五幕里出现——这是中国画里少见的"分镜"',
+    region: 'east',
   },
   {
     wikipediaSlug: '簪花仕女图',
@@ -329,6 +355,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '46 × 180 cm',
     location: '辽宁省博物馆',
     hint: '唐人的丰腴是体积感——人物像被风吹起来的纨扇',
+    region: 'east',
   },
   {
     wikipediaSlug: '五牛图',
@@ -341,6 +368,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '20.8 × 139.8 cm',
     location: '北京故宫博物院',
     hint: '五头牛朝向不同——动物画里少有的"群像"',
+    region: 'east',
   },
   {
     wikipediaSlug: '步辇图',
@@ -353,6 +381,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '38.5 × 129 cm',
     location: '北京故宫博物院',
     hint: '画的是接见——但画面重心被故意压在唐太宗一侧',
+    region: 'east',
   },
   {
     wikipediaSlug: '洛神赋图',
@@ -365,6 +394,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '27.1 × 572.8 cm',
     location: '北京故宫博物院 · 辽宁省博物馆等',
     hint: '同一个洛神在一卷里反复出现——文字的"赋"被画成了空间',
+    region: 'east',
   },
   {
     wikipediaSlug: 'The_Treachery_of_Images',
@@ -377,6 +407,7 @@ export const SEED_WORKS: SeedWork[] = [
     size: '63.5 × 93.98 cm',
     location: '洛杉矶郡艺术博物馆',
     hint: '画和文字在打架——这是一只烟斗的画，不是一只烟斗',
+    region: 'west',
   },
   {
     wikipediaSlug: 'Las_Meninas',
@@ -389,5 +420,6 @@ export const SEED_WORKS: SeedWork[] = [
     size: '318 × 276 cm',
     location: '马德里普拉多博物馆',
     hint: '画家把自己画进画里——观众站在国王和王后被画的位置上',
+    region: 'west',
   },
 ];

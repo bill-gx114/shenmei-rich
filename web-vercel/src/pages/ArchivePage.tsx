@@ -58,7 +58,22 @@ type Props = {
 
 export function ArchivePage({ works, onOpen, stats }: Props) {
   const [filter, setFilter] = useState<string>('all');
-  const filtered = works.filter((w) => (filter === 'pinned' ? w.pinned : true));
+  const now = new Date();
+  const thisYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const filtered = works.filter((w) => {
+    switch (filter) {
+      case 'pinned':
+        return w.pinned;
+      case 'month':
+        return !!w.exhibitedOn && w.exhibitedOn.startsWith(thisYM);
+      case 'east':
+        return w.region === 'east';
+      case 'west':
+        return w.region === 'west';
+      default:
+        return true;
+    }
+  });
   const s = stats ?? { visited: works.length, pinned: works.filter((w) => w.pinned).length, vocabulary: 0 };
 
   return (

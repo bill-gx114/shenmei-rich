@@ -16,7 +16,10 @@
 //   netlify functions:invoke daily-curator         (locally)
 //   or in Netlify dashboard → Functions → daily-curator → Run
 
-import type { Config } from '@netlify/functions';
+// Schedule (daily 00:00 UTC) is configured in vercel.json — Vercel Cron
+// triggers this endpoint via HTTP GET.
+export const config = { runtime: 'edge' };
+
 import { createClient } from '@supabase/supabase-js';
 import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -113,6 +116,7 @@ async function ensureSeedTablePopulated(supabase: SupabaseClient): Promise<void>
     hint: s.hint,
     source: 'initial',
     order_index: i,
+    region: s.region,
   }));
   await supabase.from('seed_works').insert(rows);
 }
@@ -129,6 +133,7 @@ type SeedRow = {
   series: string | null;
   location: string | null;
   hint: string;
+  region: 'east' | 'west' | null;
 };
 
 function rowToSeed(r: SeedRow): SeedWork {
@@ -144,6 +149,7 @@ function rowToSeed(r: SeedRow): SeedWork {
     series: r.series ?? undefined,
     location: r.location ?? '',
     hint: r.hint,
+    region: r.region ?? 'west',
   };
 }
 
@@ -249,6 +255,7 @@ export default async () => {
       size: seed.size,
       series: seed.series ?? null,
       location: seed.location,
+      region: seed.region,
       room: `今日展厅 · No. ${no}`,
       short_label: pack.shortLabel,
       curator_note: pack.curatorNote ?? null,
@@ -337,7 +344,3 @@ export default async () => {
   });
 };
 
-// 00:00 UTC every day == 08:00 Beijing. Netlify uses standard cron syntax.
-export const config: Config = {
-  schedule: '0 0 * * *',
-};

@@ -44,6 +44,8 @@ export type Work = {
 export type ArchiveWork = {
   id?: string;
   no: string;
+  /** YYYY-MM-DD — raw for filtering. Optional for legacy mock data. */
+  exhibitedOn?: string;
   date: string;
   title: string;
   artist: string;
@@ -52,6 +54,8 @@ export type ArchiveWork = {
   pinned: boolean;
   keywords: string[];
   reflection: string;
+  /** Optional for legacy mock data; null if backfill skipped this row. */
+  region?: 'east' | 'west' | null;
 };
 
 export type Pattern = {

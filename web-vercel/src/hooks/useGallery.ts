@@ -158,7 +158,7 @@ export function useTodayWork(): LoadState<Work> & { refresh: () => void } {
 async function fetchArchive(): Promise<ArchiveWork[]> {
   const { data, error } = await supabase
     .from('works')
-    .select('id, no, exhibited_on, title, artist, image_path, pinned, short_label')
+    .select('id, no, exhibited_on, title, artist, image_path, pinned, short_label, region')
     .order('exhibited_on', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((w, i) => {
@@ -166,6 +166,7 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
     return {
       id: w.id,
       no: w.no,
+      exhibitedOn: w.exhibited_on,
       date: `${d.getMonth() + 1}月${d.getDate()}日`,
       title: w.title,
       artist: w.artist,
@@ -174,6 +175,7 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
       pinned: !!w.pinned,
       keywords: [],
       reflection: w.short_label ?? '',
+      region: (w.region as 'east' | 'west' | null) ?? null,
     } as ArchiveWork;
   });
 }
