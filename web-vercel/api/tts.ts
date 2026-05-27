@@ -26,10 +26,16 @@ const SEC_MS_GEC_VERSION = '1-130.0.2849.68';
 const WIN_EPOCH_S = 11_644_473_600;
 
 function secMsGecToken(): string {
-  // 100-ns intervals (Windows ticks) since 1601-01-01 UTC, rounded to nearest
-  // 5-minute window so the token is stable across a short request span.
-  const seconds = Date.now() / 1000 + WIN_EPOCH_S;
-  let ticks = BigInt(Math.floor(seconds * 1e9 / 100));
+  // Windows file time ticks = 100ns intervals since 1601-01-01 UTC.
+  // Computed entirely in BigInt because the value (~1.3e17) overflows f64
+  // integer precision and Math.floor would silently corrupt the result.
+  // Formula: ticks = (unix_seconds + WIN_EPOCH_S) * 1e7, rounded to 5-min.
+  const unixMs = BigInt(Date.now());
+  const unixSec = unixMs / 1000n;
+  let ticks = (unixSec + BigInt(WIN_EPOCH_S)) * 10_000_000n; // 1e7 ticks/sec
+  // Also add sub-second part for accuracy (10_000 ticks per ms).
+  const subMs = unixMs % 1000n;
+  ticks += subMs * 10_000n;
   const window = 3_000_000_000n; // 5 min in 100-ns units
   ticks -= ticks % window;
   const payload = `${ticks.toString()}${TRUSTED_CLIENT_TOKEN}`;
@@ -51,7 +57,6 @@ const WS_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
   Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
-  'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
   'Accept-Encoding': 'gzip, deflate, br',
   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
 };
