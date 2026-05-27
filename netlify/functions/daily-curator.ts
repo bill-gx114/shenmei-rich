@@ -251,6 +251,7 @@ export default async () => {
       location: seed.location,
       room: `今日展厅 · No. ${no}`,
       short_label: pack.shortLabel,
+      curator_note: pack.curatorNote ?? null,
       image_path: imageUrl,
       total: 365,
     })

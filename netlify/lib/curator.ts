@@ -17,6 +17,8 @@ export type VoiceKey = (typeof VOICE_KEYS)[number];
 
 export type CuratorPack = {
   shortLabel: string;
+  /** Personal-voice note shown next to the notebook. Per-work, not generic. */
+  curatorNote: string;
   hotspots: Hotspot[];
   /** Three parallel script variants, keyed by narrator voice. */
   audioLines: Record<VoiceKey, AudioLine[]>;
@@ -36,6 +38,8 @@ const SYSTEM_PROMPT = `你是"审美日课"的策展人助手。
 
 {
   "shortLabel": "一句话墙签（25-40 字），讲清这幅作品在做什么、靠什么成立",
+
+  "curatorNote": "策展人留言（60-100 字），第一人称、口语、像跟朋友说话。**必须针对当前这一幅作品**——抓住它的一个具体处理（构图/色彩/光/质感/视线/某个细节），给出'今晚做一件事'式的可复用动作。允许用引号、破折号。避免空泛的形容词。",
 
   "hotspots": [
     { "x": 0-100 数字, "y": 0-100 数字, "label": "看点名（4-7 字）", "detail": "看点说明（25-50 字）" }

@@ -12,6 +12,7 @@ type AudioLine = { t: number; text: string };
  */
 export type CuratorDraft = {
   shortLabel: string;
+  curatorNote: string;
   hotspots: Array<{ x: number; y: number; label: string; detail: string }>;
   audioLines: AudioLine[];
   audioLinesByVoice: Record<string, AudioLine[]>;
@@ -51,6 +52,7 @@ export async function draftCuratorPack(input: DraftInput): Promise<CuratorDraft>
 
   const raw = (await r.json()) as {
     shortLabel: string;
+    curatorNote?: string;
     hotspots: CuratorDraft['hotspots'];
     audioLines: Record<string, AudioLine[]> | AudioLine[];
     questions: CuratorDraft['questions'];
@@ -62,6 +64,7 @@ export async function draftCuratorPack(input: DraftInput): Promise<CuratorDraft>
   const flat = byVoice['清·克制'] ?? Object.values(byVoice)[0] ?? [];
   return {
     shortLabel: raw.shortLabel,
+    curatorNote: raw.curatorNote ?? '',
     hotspots: raw.hotspots,
     audioLines: flat,
     audioLinesByVoice: byVoice,

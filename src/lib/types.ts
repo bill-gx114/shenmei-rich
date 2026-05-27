@@ -32,6 +32,8 @@ export type Work = {
   location: string;
   room: string;
   shortLabel: string;
+  /** Per-work curator note shown next to the notebook. Null for older works. */
+  curatorNote?: string | null;
   image: string;
   hotspots: Hotspot[];
   audioGuide: AudioGuideData;

@@ -106,23 +106,24 @@ export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props
             ))}
           </div>
         </div>
-        <div className="dictionary" style={{ background: 'transparent' }}>
-          <h3>策展人留言</h3>
-          <div className="sub">curator's note</div>
-          <p
-            style={{
-              fontFamily: 'var(--serif)',
-              fontSize: 14,
-              color: 'var(--ink-2)',
-              lineHeight: 1.85,
-              margin: 0,
-              fontStyle: 'italic',
-            }}
-          >
-            "如果你今晚做一件事，请试着把一张你正在做的图——网页、Slide、照片——
-            主体放大到占据 2/3，色彩压到三色。看看会发生什么。"
-          </p>
-        </div>
+        {work.curatorNote && (
+          <div className="dictionary" style={{ background: 'transparent' }}>
+            <h3>策展人留言</h3>
+            <div className="sub">curator's note</div>
+            <p
+              style={{
+                fontFamily: 'var(--serif)',
+                fontSize: 14,
+                color: 'var(--ink-2)',
+                lineHeight: 1.85,
+                margin: 0,
+                fontStyle: 'italic',
+              }}
+            >
+              "{work.curatorNote}"
+            </p>
+          </div>
+        )}
       </aside>
     </section>
   );

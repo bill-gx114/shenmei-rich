@@ -81,6 +81,7 @@ export function AdminNewWorkPage() {
   const [location, setLocation] = useState('');
   const [room, setRoom] = useState('');
   const [shortLabel, setShortLabel] = useState('');
+  const [curatorNote, setCuratorNote] = useState('');
   const [file, setFile] = useState<File | null>(null);
 
   const [aiHint, setAiHint] = useState('');
@@ -94,6 +95,7 @@ export function AdminNewWorkPage() {
 
   const hasDraftContent = () =>
     shortLabel.trim() ||
+    curatorNote.trim() ||
     hotspots.some((h) => h.label.trim() || h.detail.trim()) ||
     lines.some((l) => l.text.trim()) ||
     questions.some((q) => q.q.trim() || q.options.trim()) ||
@@ -101,6 +103,7 @@ export function AdminNewWorkPage() {
 
   const applyDraft = (d: CuratorDraft) => {
     setShortLabel(d.shortLabel || '');
+    setCuratorNote(d.curatorNote || '');
     setHotspots(
       (d.hotspots ?? []).length
         ? d.hotspots.map((h) => ({
@@ -195,6 +198,7 @@ export function AdminNewWorkPage() {
           location: location || null,
           room: room || null,
           short_label: shortLabel || null,
+          curator_note: curatorNote || null,
           image_path: imagePath,
         })
         .select('id')
@@ -400,6 +404,16 @@ export function AdminNewWorkPage() {
             value={shortLabel}
             onChange={(e) => setShortLabel(e.target.value)}
             placeholder="一句话讲清这幅作品在做什么"
+          />
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <L>策展人留言</L>
+          <textarea
+            style={{ ...FIELD_STYLE, minHeight: 90 }}
+            value={curatorNote}
+            onChange={(e) => setCuratorNote(e.target.value)}
+            placeholder="60-100 字，第一人称，给出一个可复用的具体动作"
           />
         </div>
 

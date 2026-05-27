@@ -66,6 +66,7 @@ async function hydrateWork(w: any): Promise<Work> {
     location: w.location ?? '',
     room: w.room ?? '',
     shortLabel: w.short_label ?? '',
+    curatorNote: w.curator_note ?? null,
     image: publicImageUrl(w.image_path),
     hotspots: (hot.data ?? []).map((h) => ({
       x: Number(h.x),
