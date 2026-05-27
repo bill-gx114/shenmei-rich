@@ -16,6 +16,7 @@ import {
   useJournal,
   saveNotebookEntry,
   useNotebookEntry,
+  usePinState,
 } from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -69,6 +70,7 @@ function MuseumShell() {
   const archiveWorks = archive.data ?? [];
   const journalData = journal.data;
   const notebookEntry = useNotebookEntry(todayWork?.id);
+  const pin = usePinState(todayWork?.id);
 
   const { configured, session } = useSession();
 
@@ -104,6 +106,15 @@ function MuseumShell() {
           }
           notebookInitial={notebookEntry}
           onNotebookSaved={notebookEntry.reload}
+          pinned={pin.pinned}
+          onTogglePin={
+            todayWork.id && session
+              ? async () => {
+                  await pin.toggle();
+                  archive.refresh();
+                }
+              : undefined
+          }
           onSaveHotspots={
             todayWork.id && canEditHotspots(session, todayWork)
               ? async (hs) => {

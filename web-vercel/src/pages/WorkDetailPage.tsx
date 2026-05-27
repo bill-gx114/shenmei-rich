@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TodayPage } from './TodayPage';
 import { Viewer } from '../components/Viewer';
-import { useWorkById, saveNotebookEntry, useArchive, useNotebookEntry } from '../hooks/useGallery';
+import {
+  useWorkById,
+  saveNotebookEntry,
+  useArchive,
+  useNotebookEntry,
+  usePinState,
+} from '../hooks/useGallery';
 import { useTweaks } from '../hooks/useTweaks';
 import { useSession } from '../hooks/useSession';
 import { saveHotspots } from '../lib/saveHotspots';
@@ -33,6 +39,7 @@ export function WorkDetailPage() {
   // early-return branches, or hook order changes between renders and React
   // throws.
   const notebookEntry = useNotebookEntry(work?.id);
+  const pin = usePinState(work?.id);
 
   if (loading) {
     return (
@@ -93,6 +100,15 @@ export function WorkDetailPage() {
         onBackToToday={() => nav('/')}
         notebookInitial={notebookEntry}
         onNotebookSaved={notebookEntry.reload}
+        pinned={pin.pinned}
+        onTogglePin={
+          work.id && session
+            ? async () => {
+                await pin.toggle();
+                archive.refresh();
+              }
+            : undefined
+        }
         onSaveNotebook={
           work.id ? (answers) => saveNotebookEntry(work.id!, answers, work.vocabulary) : undefined
         }

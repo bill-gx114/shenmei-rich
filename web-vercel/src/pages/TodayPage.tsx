@@ -21,6 +21,10 @@ type Props = {
   onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
   notebookInitial?: { answers: { chip: string; text: string }[] | null; savedAt: string | null };
   onNotebookSaved?: () => void;
+  /** Current pinned state — comes from DB. */
+  pinned?: boolean;
+  /** Toggle handler. When undefined, the pin button is hidden (e.g. anon user). */
+  onTogglePin?: () => Promise<void> | void;
 };
 
 function nextRoomLabel(currentNo: string): string {
@@ -54,6 +58,8 @@ export function TodayPage({
   onSaveHotspots,
   notebookInitial,
   onNotebookSaved,
+  pinned,
+  onTogglePin,
 }: Props) {
   const [showHotspots, setShowHotspots] = useState(tweaks.showHotspotsByDefault);
   const [focusedSpot, setFocusedSpot] = useState<number | null>(null);
@@ -202,6 +208,15 @@ export function TodayPage({
                     {showHotspots ? '·  看点已开  ·' : '看点'}
                   </button>
                   <button onClick={onOpenViewer}>放大细看</button>
+                  {onTogglePin && (
+                    <button
+                      className={pinned ? 'on' : ''}
+                      onClick={onTogglePin}
+                      title={pinned ? '从馆藏移除' : '收入馆藏'}
+                    >
+                      {pinned ? '★ 已收藏' : '☆ 收藏'}
+                    </button>
+                  )}
                   {canEdit && <button onClick={enterEdit}>调看点</button>}
                 </>
               )}

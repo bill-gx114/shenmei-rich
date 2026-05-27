@@ -156,12 +156,16 @@ export function useTodayWork(): LoadState<Work> & { refresh: () => void } {
 }
 
 async function fetchArchive(): Promise<ArchiveWork[]> {
-  const { data, error } = await supabase
-    .from('works')
-    .select('id, no, exhibited_on, title, artist, image_path, pinned, short_label, region')
-    .order('exhibited_on', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((w, i) => {
+  const [worksRes, pinsRes] = await Promise.all([
+    supabase
+      .from('works')
+      .select('id, no, exhibited_on, title, artist, image_path, short_label, region')
+      .order('exhibited_on', { ascending: false }),
+    supabase.from('user_pins').select('work_id'),
+  ]);
+  if (worksRes.error) throw worksRes.error;
+  const pinnedSet = new Set((pinsRes.data ?? []).map((r) => r.work_id as string));
+  return (worksRes.data ?? []).map((w, i) => {
     const d = new Date(w.exhibited_on);
     return {
       id: w.id,
@@ -172,7 +176,7 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
       artist: w.artist,
       img: publicImageUrl(w.image_path),
       span: [3, 4, 3, 5, 2, 4, 3, 5, 2, 3, 4][i % 11],
-      pinned: !!w.pinned,
+      pinned: pinnedSet.has(w.id),
       keywords: [],
       reflection: w.short_label ?? '',
       region: (w.region as 'east' | 'west' | null) ?? null,
@@ -180,21 +184,86 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
   });
 }
 
-export function useArchive(): LoadState<ArchiveWork[]> {
+export async function isPinned(workId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  const { data } = await supabase
+    .from('user_pins')
+    .select('work_id')
+    .eq('work_id', workId)
+    .maybeSingle();
+  return !!data;
+}
+
+export async function togglePin(workId: string, currentlyPinned: boolean): Promise<boolean> {
+  if (!isSupabaseConfigured) return currentlyPinned;
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) throw new Error('未登录');
+  if (currentlyPinned) {
+    const { error } = await supabase
+      .from('user_pins')
+      .delete()
+      .eq('owner_id', user.id)
+      .eq('work_id', workId);
+    if (error) throw error;
+    return false;
+  } else {
+    const { error } = await supabase
+      .from('user_pins')
+      .insert({ owner_id: user.id, work_id: workId });
+    if (error) throw error;
+    return true;
+  }
+}
+
+/** Reactive pin state for the active work — re-fetches whenever workId changes. */
+export function usePinState(workId?: string): {
+  pinned: boolean;
+  toggle: () => Promise<void>;
+} {
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    if (!workId) {
+      setPinned(false);
+      return;
+    }
+    let cancelled = false;
+    isPinned(workId).then((p) => {
+      if (!cancelled) setPinned(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workId]);
+  return {
+    pinned,
+    toggle: async () => {
+      if (!workId) return;
+      const next = await togglePin(workId, pinned);
+      setPinned(next);
+    },
+  };
+}
+
+export function useArchive(): LoadState<ArchiveWork[]> & { refresh: () => void } {
   const [state, setState] = useState<LoadState<ArchiveWork[]>>({
     data: isSupabaseConfigured ? null : PAST_WORKS,
     loading: isSupabaseConfigured,
     error: null,
   });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!isSupabaseConfigured) return;
+    setState((s) => ({ ...s, loading: true }));
     fetchArchive()
       .then((data) => setState({ data, loading: false, error: null }))
       .catch((err: Error) => setState({ data: null, loading: false, error: err.message }));
   }, []);
 
-  return state;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { ...state, refresh: load };
 }
 
 type JournalData = {
