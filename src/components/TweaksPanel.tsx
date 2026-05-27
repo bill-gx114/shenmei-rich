@@ -270,11 +270,14 @@ export function TweakRadio<T extends string>({
   value,
   options,
   onChange,
+  format,
 }: {
   label: string;
   value: T;
   options: T[];
   onChange: (v: T) => void;
+  /** Optional formatter for option display labels (default: identity). */
+  format?: (v: T) => string;
 }) {
   const idx = Math.max(0, options.indexOf(value));
   const n = options.length;
@@ -296,7 +299,7 @@ export function TweakRadio<T extends string>({
             aria-checked={o === value}
             onClick={() => onChange(o)}
           >
-            {o}
+            {format ? format(o) : o}
           </button>
         ))}
       </div>

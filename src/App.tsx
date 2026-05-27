@@ -34,6 +34,11 @@ import type { Session } from '@supabase/supabase-js';
 import type { Work } from './lib/types';
 
 const NARRATOR_VOICES = ['清·克制', '专业·锐利', '诗意·散文'];
+const TTS_ENGINES: Array<'edge' | 'system'> = ['edge', 'system'];
+const TTS_ENGINE_LABEL: Record<'edge' | 'system', string> = {
+  edge: '神经',
+  system: '系统',
+};
 const FRAME_OPTIONS: Array<'mat' | 'thin' | 'none'> = ['mat', 'thin', 'none'];
 
 // Single-source-of-truth admin email (matched against logged-in user). Public
@@ -257,17 +262,26 @@ function AppTweaks() {
         options={NARRATOR_VOICES}
         onChange={(v) => setTweak('narratorVoice', v)}
       />
-      <TweakSelect
-        label="音色"
-        value={tweaks.voiceName}
-        options={chineseVoices}
-        placeholder={
-          chineseVoices.length
-            ? `自动（${chineseVoices[0]?.label ?? ''}）`
-            : '加载中…'
-        }
-        onChange={(v) => setTweak('voiceName', v)}
+      <TweakRadio
+        label="语音引擎"
+        value={tweaks.ttsEngine}
+        options={TTS_ENGINES}
+        format={(v) => TTS_ENGINE_LABEL[v as 'edge' | 'system']}
+        onChange={(v) => setTweak('ttsEngine', v)}
       />
+      {tweaks.ttsEngine === 'system' && (
+        <TweakSelect
+          label="系统音色"
+          value={tweaks.voiceName}
+          options={chineseVoices}
+          placeholder={
+            chineseVoices.length
+              ? `自动（${chineseVoices[0]?.label ?? ''}）`
+              : '加载中…'
+          }
+          onChange={(v) => setTweak('voiceName', v)}
+        />
+      )}
       <TweakSection label="展厅" />
       <TweakSlider
         label="聚光强度"

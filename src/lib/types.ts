@@ -74,8 +74,12 @@ export type ConstellationWord = {
 
 export type Tweaks = {
   narratorVoice: string;
+  /** 'edge' = backend-proxied Microsoft neural voices (higher quality).
+   *  'system' = browser's SpeechSynthesis API (free, lower quality, offline). */
+  ttsEngine: 'edge' | 'system';
   /** Specific system TTS voice name (matches SpeechSynthesisVoice.name).
-   *  Empty string = auto-pick the best available Chinese voice. */
+   *  Empty string = auto-pick the best available Chinese voice.
+   *  Only relevant when ttsEngine === 'system'. */
   voiceName: string;
   spotlight: number;
   showHotspotsByDefault: boolean;

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AudioGuideData } from '../lib/types';
 import { TTSPlayer, isTTSSupported, narratorVoiceToRate, onVoicesReady } from '../lib/tts';
+import { EdgeTTSPlayer, narratorVoiceToEdgeVoice } from '../lib/tts-edge';
 
 type Props = {
   guide: AudioGuideData;
   narratorVoice: string;
+  /** 'edge' = neural via /api/tts, 'system' = browser SpeechSynthesis. */
+  ttsEngine?: 'edge' | 'system';
   /** Specific system TTS voice (SpeechSynthesisVoice.name). '' = auto-pick. */
   voiceName?: string;
   onLineChange?: (idx: number) => void;
@@ -33,7 +36,13 @@ function PauseIcon() {
   );
 }
 
-export function AudioGuide({ guide, narratorVoice, voiceName = '', onLineChange }: Props) {
+export function AudioGuide({
+  guide,
+  narratorVoice,
+  ttsEngine = 'edge',
+  voiceName = '',
+  onLineChange,
+}: Props) {
   // Pick the script that matches the current narrator voice; if a work was
   // created before multi-voice support (no variant for the chosen voice),
   // fall back to '清·克制', then to whatever exists.
@@ -44,7 +53,9 @@ export function AudioGuide({ guide, narratorVoice, voiceName = '', onLineChange 
     Object.values(variants)[0] ??
     [];
   const { duration } = guide;
-  const supported = isTTSSupported();
+  // Edge TTS works in any modern browser (HTMLAudioElement); system TTS
+  // depends on speechSynthesis.
+  const supported = ttsEngine === 'edge' ? true : isTTSSupported();
 
   const [playing, setPlaying] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -52,7 +63,11 @@ export function AudioGuide({ guide, narratorVoice, voiceName = '', onLineChange 
   const scriptRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
 
-  const player = useMemo(() => new TTSPlayer(), []);
+  // Re-create the player whenever the engine changes so we never play through
+  // a stale instance. Each player exposes the same minimal surface.
+  const player = useMemo(() => {
+    return ttsEngine === 'edge' ? new EdgeTTSPlayer() : new TTSPlayer();
+  }, [ttsEngine]);
 
   useEffect(() => {
     player.setLines(lines.map((l) => l.text));
@@ -64,26 +79,30 @@ export function AudioGuide({ guide, narratorVoice, voiceName = '', onLineChange 
   }, [player, narratorVoice, speed]);
 
   useEffect(() => {
-    player.setOptions({
-      lang: 'zh-CN',
+    const opts = {
+      lang: 'zh-CN' as const,
       voiceName,
+      edgeVoice: narratorVoiceToEdgeVoice(narratorVoice),
       rate: narratorVoiceToRate(narratorVoice) * speed,
-      onLineStart: (i) => setActiveIdx(i),
+      onLineStart: (i: number) => setActiveIdx(i),
       onComplete: () => {
         setPlaying(false);
         setActiveIdx(lines.length - 1);
       },
-    });
+    };
+    // Both players accept this options shape; Edge player ignores voiceName,
+    // system player ignores edgeVoice.
+    (player as TTSPlayer | EdgeTTSPlayer).setOptions(opts);
     return () => player.cancel();
   }, [player, narratorVoice, voiceName, speed, lines.length]);
 
-  // When voiceName changes mid-playback, stop so user can re-play with new voice.
+  // When voiceName or engine changes mid-playback, stop so user can re-play.
   useEffect(() => {
     player.cancel();
     setPlaying(false);
     setActiveIdx(-1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceName, player]);
+  }, [voiceName, ttsEngine, player]);
 
   // When the narrator voice changes, the active script lines change too. Stop
   // any in-progress playback so the user can press play to hear the new voice

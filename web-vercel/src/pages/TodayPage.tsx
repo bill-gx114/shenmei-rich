@@ -229,6 +229,7 @@ export function TodayPage({
           <AudioGuide
             guide={work.audioGuide}
             narratorVoice={tweaks.narratorVoice}
+            ttsEngine={tweaks.ttsEngine}
             voiceName={tweaks.voiceName}
           />
         </div>
