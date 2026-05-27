@@ -10,7 +10,13 @@ import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
 import { WorkDetailPage } from './pages/WorkDetailPage';
 import { TweaksProvider, useTweaks } from './hooks/useTweaks';
-import { useTodayWork, useArchive, useJournal, saveNotebookEntry } from './hooks/useGallery';
+import {
+  useTodayWork,
+  useArchive,
+  useJournal,
+  saveNotebookEntry,
+  useNotebookEntry,
+} from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { useSession } from './hooks/useSession';
@@ -62,6 +68,7 @@ function MuseumShell() {
   const todayWork = today.data;
   const archiveWorks = archive.data ?? [];
   const journalData = journal.data;
+  const notebookEntry = useNotebookEntry(todayWork?.id);
 
   const { configured, session } = useSession();
 
@@ -95,6 +102,8 @@ function MuseumShell() {
               ? (answers) => saveNotebookEntry(todayWork.id!, answers, todayWork.vocabulary)
               : undefined
           }
+          notebookInitial={notebookEntry}
+          onNotebookSaved={notebookEntry.reload}
           onSaveHotspots={
             todayWork.id && canEditHotspots(session, todayWork)
               ? async (hs) => {

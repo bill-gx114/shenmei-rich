@@ -13,15 +13,19 @@ type Props = {
 const NUMERALS = ['一', '二', '三', '四', '五'];
 
 export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props) {
-  const [answers, setAnswers] = useState<Answer[]>(
-    () => initialAnswers ?? work.questions.map(() => ({ chip: '', text: '' })),
-  );
+  const seed = (): Answer[] =>
+    initialAnswers && initialAnswers.length === work.questions.length
+      ? initialAnswers
+      : work.questions.map(() => ({ chip: '', text: '' }));
+  const [answers, setAnswers] = useState<Answer[]>(seed);
   const [savedAt, setSavedAt] = useState<string | null>(initialSavedAt ?? null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (initialAnswers) setAnswers(initialAnswers);
-  }, [initialAnswers]);
+    setAnswers(seed());
+    setSavedAt(initialSavedAt ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAnswers, initialSavedAt, work.questions.length]);
 
   const set = (i: number, patch: Partial<Answer>) =>
     setAnswers((a) => a.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
@@ -53,7 +57,7 @@ export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props
                 <button
                   key={opt}
                   className={`chip ${answers[i].chip === opt ? 'on' : ''}`}
-                  onClick={() => set(i, { chip: opt, text: answers[i].text || opt })}
+                  onClick={() => set(i, { chip: opt, text: opt })}
                 >
                   {opt}
                 </button>

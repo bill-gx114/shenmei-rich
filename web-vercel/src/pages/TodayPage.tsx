@@ -19,6 +19,8 @@ type Props = {
   onSaveNotebook?: (answers: { chip: string; text: string }[]) => Promise<void> | void;
   /** When provided, the user is allowed to edit hotspots for this work. */
   onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
+  notebookInitial?: { answers: { chip: string; text: string }[] | null; savedAt: string | null };
+  onNotebookSaved?: () => void;
 };
 
 function nextRoomLabel(currentNo: string): string {
@@ -50,6 +52,8 @@ export function TodayPage({
   onBackToToday,
   onSaveNotebook,
   onSaveHotspots,
+  notebookInitial,
+  onNotebookSaved,
 }: Props) {
   const [showHotspots, setShowHotspots] = useState(tweaks.showHotspotsByDefault);
   const [focusedSpot, setFocusedSpot] = useState<number | null>(null);
@@ -211,7 +215,19 @@ export function TodayPage({
         </div>
       </div>
 
-      <Notebook work={work} onSave={onSaveNotebook} />
+      <Notebook
+        work={work}
+        onSave={
+          onSaveNotebook
+            ? async (a) => {
+                await onSaveNotebook(a);
+                onNotebookSaved?.();
+              }
+            : undefined
+        }
+        initialAnswers={notebookInitial?.answers ?? undefined}
+        initialSavedAt={notebookInitial?.savedAt ?? null}
+      />
 
       <section className="corridor">
         {mode === 'past' ? (

@@ -313,3 +313,48 @@ export async function fetchNotebookEntry(workId: string) {
   if (error) throw error;
   return data;
 }
+
+export type NotebookEntryState = {
+  answers: { chip: string; text: string }[] | null;
+  savedAt: string | null;
+};
+
+/**
+ * Loads this user's notebook entry for the given work so the form can be
+ * prefilled when revisiting an already-answered work.
+ */
+export function useNotebookEntry(workId?: string): NotebookEntryState & { reload: () => void } {
+  const [state, setState] = useState<NotebookEntryState>({ answers: null, savedAt: null });
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    if (!workId) {
+      setState({ answers: null, savedAt: null });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const entry = await fetchNotebookEntry(workId);
+        if (cancelled) return;
+        if (!entry) {
+          setState({ answers: null, savedAt: null });
+          return;
+        }
+        const ans = (entry.answers as { chip: string; text: string }[]) ?? null;
+        const savedAt = entry.saved_at
+          ? new Date(entry.saved_at).toLocaleDateString('zh-CN', {
+              month: 'long',
+              day: 'numeric',
+            })
+          : null;
+        setState({ answers: ans, savedAt });
+      } catch {
+        if (!cancelled) setState({ answers: null, savedAt: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workId, version]);
+  return { ...state, reload: () => setVersion((v) => v + 1) };
+}

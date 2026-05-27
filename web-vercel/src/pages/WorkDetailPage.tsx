@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TodayPage } from './TodayPage';
 import { Viewer } from '../components/Viewer';
-import { useWorkById, saveNotebookEntry, useArchive } from '../hooks/useGallery';
+import { useWorkById, saveNotebookEntry, useArchive, useNotebookEntry } from '../hooks/useGallery';
 import { useTweaks } from '../hooks/useTweaks';
 import { useSession } from '../hooks/useSession';
 import { saveHotspots } from '../lib/saveHotspots';
@@ -76,6 +76,7 @@ export function WorkDetailPage() {
   const pastCount = Math.max(0, archiveWorks.length - 1);
 
   const editable = canEditHotspots(session?.user.id, session?.user.email ?? undefined, work);
+  const notebookEntry = useNotebookEntry(work.id);
 
   return (
     <>
@@ -87,6 +88,8 @@ export function WorkDetailPage() {
         onOpenViewer={() => setViewerOpen(true)}
         onGoArchive={() => nav('/?tab=archive')}
         onBackToToday={() => nav('/')}
+        notebookInitial={notebookEntry}
+        onNotebookSaved={notebookEntry.reload}
         onSaveNotebook={
           work.id ? (answers) => saveNotebookEntry(work.id!, answers, work.vocabulary) : undefined
         }
