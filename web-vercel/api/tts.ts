@@ -1,21 +1,20 @@
-// POST /api/tts
-// Body: { text: string, voice?: string }
-// Returns: { url: string, cached: boolean }
+// POST /api/tts  Body: { text, voice? }  → { url, cached }
 //
-// Proxies Microsoft Edge's neural TTS (zh-CN-XiaoxiaoNeural by default) and
-// caches each result in Supabase Storage by sha256(voice|text). Subsequent
-// requests for the same line return the cached URL instantly.
-//
-// Uses Node.js runtime — msedge-tts ships a WebSocket client that needs the
-// `ws` package, which the Edge runtime does not provide. Cold start ~1-2s,
-// per synthesis 1-3s; with cache, follow-up plays are instant.
+// Proxies Microsoft Edge's neural TTS and caches each result in Supabase
+// Storage by sha256(voice|text). Runs on the Vercel Edge runtime — uses
+// native WebSocket + Web Crypto, no Node-only dependencies.
 
-import crypto from 'node:crypto';
+export const config = { runtime: 'edge' };
+
 import { createClient } from '@supabase/supabase-js';
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 const BUCKET = 'tts-cache';
 const DEFAULT_VOICE = 'zh-CN-XiaoxiaoNeural';
+// This is the same trusted-client token Edge browsers ship publicly.
+// Documented widely in open-source Edge-TTS clients (Python edge-tts,
+// rust-edge-tts, msedge-tts, etc.).
+const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const WSS_URL = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`;
 
 function jsonResp(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -24,21 +23,115 @@ function jsonResp(status: number, body: unknown) {
   });
 }
 
-async function synthesizeToBuffer(voice: string, text: string): Promise<Buffer> {
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-  const { audioStream } = tts.toStream(text);
-  const chunks: Buffer[] = [];
+function uuid32(): string {
+  // 32-char hex, MS expects no dashes.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Speak `text` via Microsoft Edge's WebSocket TTS API, return MP3 bytes.
+ *
+ * Protocol:
+ *  - Connect to WSS_URL
+ *  - Send a JSON config message (speech.config)
+ *  - Send the SSML message
+ *  - Receive a series of binary frames (audio data, prefixed by a 2-byte
+ *    big-endian header length + textual header)
+ *  - A text message with Path: turn.end signals the end
+ */
+function synthesize(voice: string, text: string): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    audioStream.on('data', (c: Buffer) => chunks.push(c));
-    audioStream.on('close', () => {
-      tts.close();
-      resolve(Buffer.concat(chunks));
-    });
-    audioStream.on('error', (e: Error) => {
-      tts.close();
-      reject(e);
-    });
+    const reqId = uuid32();
+    const ws = new WebSocket(WSS_URL);
+    ws.binaryType = 'arraybuffer';
+
+    const chunks: Uint8Array[] = [];
+    let settled = false;
+
+    const failTimer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch { /* ignore */ }
+      reject(new Error('Edge TTS websocket timeout (20s)'));
+    }, 20_000);
+
+    const finish = (ok: Uint8Array | null, err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(failTimer);
+      try { ws.close(); } catch { /* ignore */ }
+      if (err) reject(err);
+      else if (ok) resolve(ok);
+      else reject(new Error('Edge TTS returned no audio'));
+    };
+
+    ws.onopen = () => {
+      const now = new Date().toISOString();
+      // 1. Speech config
+      const config = {
+        context: {
+          synthesis: {
+            audio: {
+              metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'false' },
+              outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+            },
+          },
+        },
+      };
+      ws.send(
+        `X-Timestamp:${now}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n${JSON.stringify(config)}`,
+      );
+      // 2. SSML
+      const ssml =
+        `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">` +
+        `<voice name="${voice}">${text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</voice>` +
+        `</speak>`;
+      ws.send(
+        `X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${now}Z\r\nPath:ssml\r\n\r\n${ssml}`,
+      );
+    };
+
+    ws.onmessage = (ev) => {
+      const data = ev.data;
+      if (typeof data === 'string') {
+        // Text frame — look for turn.end which signals completion.
+        if (data.includes('Path:turn.end')) {
+          const all = chunks.reduce((n, c) => n + c.byteLength, 0);
+          const out = new Uint8Array(all);
+          let off = 0;
+          for (const c of chunks) {
+            out.set(c, off);
+            off += c.byteLength;
+          }
+          finish(out);
+        }
+        return;
+      }
+      // Binary frame: [2-byte header length BE][headers][audio bytes]
+      const buf = data instanceof ArrayBuffer ? data : (data as Blob);
+      if (buf instanceof ArrayBuffer) {
+        const view = new DataView(buf);
+        const headerLen = view.getUint16(0, false);
+        const audio = new Uint8Array(buf, 2 + headerLen);
+        if (audio.byteLength > 0) chunks.push(audio);
+      }
+    };
+
+    ws.onerror = () => finish(null, new Error('Edge TTS websocket error'));
+    ws.onclose = () => {
+      if (!settled) finish(null, new Error('Edge TTS websocket closed before turn.end'));
+    };
   });
 }
 
@@ -65,13 +158,13 @@ export default async function handler(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Cache key — first 16 hex chars of sha256(voice|text) is plenty (16^16 keys).
-  const hash = crypto.createHash('sha256').update(`${voice}|${text}`).digest('hex').slice(0, 24);
+  const hashFull = await sha256Hex(`${voice}|${text}`);
+  const hash = hashFull.slice(0, 24);
   const path = `${voice}/${hash}.mp3`;
   const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const publicUrl = publicUrlData.publicUrl;
 
-  // Check cache (HEAD via list — Supabase has no head endpoint; this is cheap).
+  // Cache probe.
   const { data: existing } = await supabase.storage
     .from(BUCKET)
     .list(voice, { search: `${hash}.mp3`, limit: 1 });
@@ -79,17 +172,16 @@ export default async function handler(req: Request) {
     return jsonResp(200, { url: publicUrl, cached: true });
   }
 
-  // Synthesize fresh.
-  let buf: Buffer;
+  let buf: Uint8Array;
   try {
-    buf = await synthesizeToBuffer(voice, text);
+    buf = await synthesize(voice, text);
   } catch (e) {
     return jsonResp(502, {
       error: 'Edge TTS 合成失败',
       detail: e instanceof Error ? e.message : String(e),
     });
   }
-  if (!buf.length) return jsonResp(502, { error: 'Edge TTS 返回空音频' });
+  if (!buf.byteLength) return jsonResp(502, { error: 'Edge TTS 返回空音频' });
 
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
