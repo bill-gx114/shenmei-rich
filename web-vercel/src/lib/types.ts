@@ -74,6 +74,9 @@ export type ConstellationWord = {
 
 export type Tweaks = {
   narratorVoice: string;
+  /** Specific system TTS voice name (matches SpeechSynthesisVoice.name).
+   *  Empty string = auto-pick the best available Chinese voice. */
+  voiceName: string;
   spotlight: number;
   showHotspotsByDefault: boolean;
   frame: 'mat' | 'thin' | 'none';

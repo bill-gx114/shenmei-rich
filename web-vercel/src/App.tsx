@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import { Signage } from './components/Signage';
 import { Viewer } from './components/Viewer';
-import { TweaksPanel, TweakSection, TweakSlider, TweakRadio, TweakToggle } from './components/TweaksPanel';
+import {
+  TweaksPanel,
+  TweakSection,
+  TweakSlider,
+  TweakRadio,
+  TweakSelect,
+  TweakToggle,
+} from './components/TweaksPanel';
+import { listChineseVoices, onVoicesReady } from './lib/tts';
 import { RequireAuth } from './components/AuthGate';
 import { LoginPage } from './pages/LoginPage';
 import { TodayPage } from './pages/TodayPage';
@@ -222,6 +230,24 @@ function EmptyToday({
 
 function AppTweaks() {
   const [tweaks, setTweak] = useTweaks();
+  const [chineseVoices, setChineseVoices] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  useEffect(() => {
+    const refresh = () => {
+      const ranked = listChineseVoices();
+      setChineseVoices(
+        ranked.map((v) => ({
+          value: v.name,
+          // Show name + lang so duplicates are distinguishable.
+          label: `${v.name} (${v.lang})`,
+        })),
+      );
+    };
+    refresh();
+    const off = onVoicesReady(refresh);
+    return off;
+  }, []);
   return (
     <TweaksPanel title="Tweaks · 展厅设置">
       <TweakSection label="策展人" />
@@ -230,6 +256,17 @@ function AppTweaks() {
         value={tweaks.narratorVoice}
         options={NARRATOR_VOICES}
         onChange={(v) => setTweak('narratorVoice', v)}
+      />
+      <TweakSelect
+        label="音色"
+        value={tweaks.voiceName}
+        options={chineseVoices}
+        placeholder={
+          chineseVoices.length
+            ? `自动（${chineseVoices[0]?.label ?? ''}）`
+            : '加载中…'
+        }
+        onChange={(v) => setTweak('voiceName', v)}
       />
       <TweakSection label="展厅" />
       <TweakSlider

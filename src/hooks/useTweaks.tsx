@@ -4,6 +4,7 @@ import type { Tweaks } from '../lib/types';
 
 const DEFAULTS: Tweaks = {
   narratorVoice: '清·克制',
+  voiceName: '',
   spotlight: 70,
   showHotspotsByDefault: true,
   frame: 'mat',

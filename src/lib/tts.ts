@@ -5,6 +5,8 @@ export type TTSOptions = {
   rate?: number;
   /** Language tag passed to SpeechSynthesisUtterance, e.g. "zh-CN". */
   lang?: string;
+  /** Preferred SpeechSynthesisVoice.name. Empty = let TTSPlayer auto-pick. */
+  voiceName?: string;
   /** Called when a line starts (before it begins speaking). */
   onLineStart?: (index: number) => void;
   /** Called when a line ends — index is the line that just finished. */
@@ -25,6 +27,7 @@ export class TTSPlayer {
   private status: TTSStatus = 'idle';
   private rate = 1;
   private lang = 'zh-CN';
+  private voiceName = '';
   private opts: TTSOptions = {};
   private current: SpeechSynthesisUtterance | null = null;
   /** Guards against firing onend for an utterance we already cancelled. */
@@ -43,6 +46,11 @@ export class TTSPlayer {
     this.opts = opts;
     if (opts.rate != null) this.rate = opts.rate;
     if (opts.lang) this.lang = opts.lang;
+    if (opts.voiceName != null) this.voiceName = opts.voiceName;
+  }
+
+  setVoiceName(name: string) {
+    this.voiceName = name;
   }
 
   getStatus(): TTSStatus {
@@ -104,10 +112,16 @@ export class TTSPlayer {
     if (!('speechSynthesis' in window)) return null;
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
-    const exact = voices.find((v) => v.lang === this.lang);
-    if (exact) return exact;
-    const prefix = this.lang.split('-')[0];
-    return voices.find((v) => v.lang?.startsWith(prefix)) ?? null;
+
+    // 1. Honor explicit user choice if it's still present in the list.
+    if (this.voiceName) {
+      const exact = voices.find((v) => v.name === this.voiceName);
+      if (exact) return exact;
+    }
+
+    // 2. Auto-pick: score each Chinese-capable voice, take the best.
+    const ranked = listChineseVoices(voices);
+    return ranked[0] ?? null;
   }
 
   private speakCurrent() {
@@ -180,4 +194,41 @@ export function narratorVoiceToRate(voice: string): number {
 
 export function isTTSSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
+}
+
+/**
+ * Return all Chinese-capable voices, sorted "likely best" first. Heuristic:
+ * - prefer zh-CN > zh-* > 'cmn-*' > anything Chinese in voice name
+ * - prefer "premium / enhanced / neural" indicators in voiceURI or name
+ * - prefer female-coded names commonly used for audio guides (婷婷 / 小晓 /
+ *   Tingting / Xiaoxiao) — purely a tiebreaker
+ */
+export function listChineseVoices(
+  voices: SpeechSynthesisVoice[] = window.speechSynthesis?.getVoices() ?? [],
+): SpeechSynthesisVoice[] {
+  const score = (v: SpeechSynthesisVoice): number => {
+    let s = 0;
+    const lang = (v.lang || '').toLowerCase();
+    const name = (v.name || '').toLowerCase();
+    const uri = (v.voiceURI || '').toLowerCase();
+    // Language match
+    if (lang === 'zh-cn') s += 50;
+    else if (lang.startsWith('zh')) s += 35;
+    else if (lang.startsWith('cmn')) s += 30;
+    else if (/chin|mandarin|普通|中文/i.test(v.name)) s += 20;
+    else return -1; // not Chinese at all
+    // Quality hints (Apple "premium", Microsoft "Neural", Google "Standard"
+    // upgrades, Edge online voices, etc.)
+    if (/premium|enhanced|neural|hd|wavenet|natural|online/.test(uri + ' ' + name)) s += 25;
+    // Common high-quality voice names
+    if (/tingting|tiantian|xiaoxiao|xiaoyi|xiaomo|yunxi|yunjian|kaiwen|huihui/.test(name)) s += 6;
+    // Female-coded preferred by default for museum-style narration
+    if (/female|tingting|xiaoxiao|xiaoyi/.test(name)) s += 2;
+    return s;
+  };
+  return voices
+    .map((v) => ({ v, s: score(v) }))
+    .filter((x) => x.s >= 0)
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.v);
 }

@@ -224,6 +224,47 @@ export function TweakToggle({
   );
 }
 
+export function TweakSelect({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <TweakRow label={label}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '5px 8px',
+          background: 'rgba(0,0,0,.06)',
+          border: '0',
+          borderRadius: 6,
+          fontFamily: 'inherit',
+          fontSize: 11.5,
+          color: 'inherit',
+          outline: 'none',
+        }}
+      >
+        <option value="">{placeholder ?? '自动选择'}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </TweakRow>
+  );
+}
+
 export function TweakRadio<T extends string>({
   label,
   value,

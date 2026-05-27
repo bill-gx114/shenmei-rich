@@ -226,7 +226,11 @@ export function TodayPage({
 
         <div className="right-col">
           <WallLabel work={work} />
-          <AudioGuide guide={work.audioGuide} narratorVoice={tweaks.narratorVoice} />
+          <AudioGuide
+            guide={work.audioGuide}
+            narratorVoice={tweaks.narratorVoice}
+            voiceName={tweaks.voiceName}
+          />
         </div>
       </div>
 

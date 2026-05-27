@@ -5,6 +5,8 @@ import { TTSPlayer, isTTSSupported, narratorVoiceToRate, onVoicesReady } from '.
 type Props = {
   guide: AudioGuideData;
   narratorVoice: string;
+  /** Specific system TTS voice (SpeechSynthesisVoice.name). '' = auto-pick. */
+  voiceName?: string;
   onLineChange?: (idx: number) => void;
 };
 
@@ -31,7 +33,7 @@ function PauseIcon() {
   );
 }
 
-export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
+export function AudioGuide({ guide, narratorVoice, voiceName = '', onLineChange }: Props) {
   // Pick the script that matches the current narrator voice; if a work was
   // created before multi-voice support (no variant for the chosen voice),
   // fall back to '清·克制', then to whatever exists.
@@ -64,6 +66,7 @@ export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
   useEffect(() => {
     player.setOptions({
       lang: 'zh-CN',
+      voiceName,
       rate: narratorVoiceToRate(narratorVoice) * speed,
       onLineStart: (i) => setActiveIdx(i),
       onComplete: () => {
@@ -72,7 +75,15 @@ export function AudioGuide({ guide, narratorVoice, onLineChange }: Props) {
       },
     });
     return () => player.cancel();
-  }, [player, narratorVoice, speed, lines.length]);
+  }, [player, narratorVoice, voiceName, speed, lines.length]);
+
+  // When voiceName changes mid-playback, stop so user can re-play with new voice.
+  useEffect(() => {
+    player.cancel();
+    setPlaying(false);
+    setActiveIdx(-1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceName, player]);
 
   // When the narrator voice changes, the active script lines change too. Stop
   // any in-progress playback so the user can press play to hear the new voice
