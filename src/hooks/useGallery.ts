@@ -273,9 +273,19 @@ type JournalData = {
 };
 
 async function fetchJournal(): Promise<JournalData> {
+  // Defense in depth: even though migration 0009 makes v_user_constellation
+  // run with security_invoker (so keyword_uses RLS now actually applies),
+  // we also filter client-side by the current user. Anonymous users get [].
+  const user = (await supabase.auth.getUser()).data.user;
   const [archive, conRes] = await Promise.all([
     fetchArchive(),
-    supabase.from('v_user_constellation').select('*').order('count', { ascending: false }),
+    user
+      ? supabase
+          .from('v_user_constellation')
+          .select('*')
+          .eq('owner_id', user.id)
+          .order('count', { ascending: false })
+      : Promise.resolve({ data: [] as Array<{ keyword: string; count: number; last_used_at: string | null; is_new: boolean }> }),
   ]);
   const constellation: ConstellationWord[] = (conRes.data ?? []).map((row) => ({
     w: row.keyword,
