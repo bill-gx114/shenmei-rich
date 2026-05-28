@@ -294,17 +294,26 @@ const EMPTY_JOURNAL: JournalData = {
   hasUser: false,
 };
 
-/** Compute consecutive-day streak ending today or yesterday. */
-function computeStreak(savedAtList: string[]): number {
-  if (!savedAtList.length) return 0;
+/**
+ * Compute consecutive-day streak ending today or yesterday.
+ *
+ * Input is the list of `exhibited_on` (the date the work was on display),
+ * not `saved_at` (when the user last clicked Save). Reason: notebook_entries
+ * is upserted by (owner_id, work_id), so re-editing an old day's answers
+ * moves saved_at forward — using saved_at would silently erase that day from
+ * the streak. exhibited_on is stable: "you observed the work shown on day X."
+ */
+function computeStreak(exhibitedOnList: Array<string | null | undefined>): number {
   const days = new Set<string>();
-  for (const ts of savedAtList) {
-    const d = new Date(ts);
-    days.add(`${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`);
+  for (const iso of exhibitedOnList) {
+    if (!iso) continue;
+    // exhibited_on is stored as 'YYYY-MM-DD' — use directly, no Date parsing
+    // (which would re-introduce timezone shifts).
+    days.add(iso.slice(0, 10));
   }
-  // Walk backwards from today; allow a 1-day grace (user might not have done
-  // today yet but did yesterday).
-  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  if (!days.size) return 0;
+  const dayKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const today = new Date();
   let cursor = new Date(today);
   if (!days.has(dayKey(cursor))) {
@@ -383,7 +392,13 @@ async function fetchJournal(): Promise<JournalData> {
     };
   });
 
-  const streak = computeStreak(entries.map((e) => e.saved_at as string));
+  const streak = computeStreak(
+    entries.map((e) => {
+      const wRaw = (e as { works: unknown }).works;
+      const w = (Array.isArray(wRaw) ? wRaw[0] : wRaw) as { exhibited_on?: string } | null;
+      return w?.exhibited_on;
+    }),
+  );
 
   return {
     recentEntries,
