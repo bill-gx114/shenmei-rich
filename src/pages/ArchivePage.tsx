@@ -54,9 +54,11 @@ type Props = {
   works: ArchiveWork[];
   onOpen: (w: ArchiveWork) => void;
   stats?: { visited: number; pinned: number; vocabulary: number };
+  hasUser?: boolean;
+  onLogin?: () => void;
 };
 
-export function ArchivePage({ works, onOpen, stats }: Props) {
+export function ArchivePage({ works, onOpen, stats, hasUser = true, onLogin }: Props) {
   const [filter, setFilter] = useState<string>('all');
   const now = new Date();
   const thisYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -81,22 +83,54 @@ export function ArchivePage({ works, onOpen, stats }: Props) {
       <header className="archive-head">
         <div>
           <div className="lead">Archive · 馆藏</div>
-          <h1>你的私人馆藏</h1>
+          <h1>{hasUser ? '你的私人馆藏' : '馆藏'}</h1>
+          {!hasUser && (
+            <div
+              style={{
+                color: 'var(--ink-3)',
+                fontFamily: 'var(--serif)',
+                marginTop: 8,
+                fontSize: 13,
+              }}
+            >
+              共享馆藏 ·{' '}
+              <button
+                onClick={onLogin}
+                style={{
+                  background: 'transparent',
+                  border: 0,
+                  color: 'var(--gold)',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  textDecoration: 'underline',
+                  textDecorationStyle: 'dotted',
+                  textUnderlineOffset: 4,
+                }}
+              >
+                登录
+              </button>{' '}
+              后开始追踪你的观摩与收藏
+            </div>
+          )}
         </div>
-        <div className="stats">
-          <div className="stat">
-            <div className="v">{s.visited}</div>
-            <div className="l">已观摩</div>
+        {hasUser && (
+          <div className="stats">
+            <div className="stat">
+              <div className="v">{s.visited}</div>
+              <div className="l">已观摩</div>
+            </div>
+            <div className="stat">
+              <div className="v">{s.pinned}</div>
+              <div className="l">收藏</div>
+            </div>
+            <div className="stat">
+              <div className="v">{s.vocabulary}</div>
+              <div className="l">累积新词</div>
+            </div>
           </div>
-          <div className="stat">
-            <div className="v">{s.pinned}</div>
-            <div className="l">收藏</div>
-          </div>
-          <div className="stat">
-            <div className="v">{s.vocabulary}</div>
-            <div className="l">累积新词</div>
-          </div>
-        </div>
+        )}
       </header>
 
       <div className="archive-filters">

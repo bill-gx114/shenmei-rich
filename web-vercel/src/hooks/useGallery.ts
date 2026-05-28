@@ -267,26 +267,77 @@ export function useArchive(): LoadState<ArchiveWork[]> & { refresh: () => void }
 }
 
 type JournalData = {
-  works: ArchiveWork[];
+  /** Works recently observed by THIS user (joined from notebook_entries). */
+  recentEntries: ArchiveWork[];
   constellation: ConstellationWord[];
   patterns: Pattern[];
+  stats: {
+    /** Longest streak of consecutive days with at least one notebook entry,
+     *  ending today or yesterday. */
+    streak: number;
+    /** Total distinct keywords logged. */
+    vocabulary: number;
+    /** Total notebook entries (= works the user has answered). */
+    notes: number;
+    /** Heuristic pattern count (currently = top-N keyword count). */
+    patterns: number;
+  };
+  /** True when the viewer is logged in. Anonymous → page should show CTA. */
+  hasUser: boolean;
 };
 
+const EMPTY_JOURNAL: JournalData = {
+  recentEntries: [],
+  constellation: [],
+  patterns: [],
+  stats: { streak: 0, vocabulary: 0, notes: 0, patterns: 0 },
+  hasUser: false,
+};
+
+/** Compute consecutive-day streak ending today or yesterday. */
+function computeStreak(savedAtList: string[]): number {
+  if (!savedAtList.length) return 0;
+  const days = new Set<string>();
+  for (const ts of savedAtList) {
+    const d = new Date(ts);
+    days.add(`${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`);
+  }
+  // Walk backwards from today; allow a 1-day grace (user might not have done
+  // today yet but did yesterday).
+  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  const today = new Date();
+  let cursor = new Date(today);
+  if (!days.has(dayKey(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (!days.has(dayKey(cursor))) return 0;
+  }
+  let streak = 0;
+  while (days.has(dayKey(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 async function fetchJournal(): Promise<JournalData> {
-  // Defense in depth: even though migration 0009 makes v_user_constellation
-  // run with security_invoker (so keyword_uses RLS now actually applies),
-  // we also filter client-side by the current user. Anonymous users get [].
   const user = (await supabase.auth.getUser()).data.user;
-  const [archive, conRes] = await Promise.all([
-    fetchArchive(),
-    user
-      ? supabase
-          .from('v_user_constellation')
-          .select('*')
-          .eq('owner_id', user.id)
-          .order('count', { ascending: false })
-      : Promise.resolve({ data: [] as Array<{ keyword: string; count: number; last_used_at: string | null; is_new: boolean }> }),
+  if (!user) return EMPTY_JOURNAL;
+
+  // Pull everything user-scoped in parallel. RLS already restricts each table
+  // to owner_id = auth.uid(); we still add explicit .eq for defense in depth.
+  const [conRes, entriesRes] = await Promise.all([
+    supabase
+      .from('v_user_constellation')
+      .select('*')
+      .eq('owner_id', user.id)
+      .order('count', { ascending: false }),
+    supabase
+      .from('notebook_entries')
+      .select('saved_at, work_id, answers, works(no, exhibited_on, title, artist, image_path, region, short_label)')
+      .eq('owner_id', user.id)
+      .order('saved_at', { ascending: false }),
   ]);
+
   const constellation: ConstellationWord[] = (conRes.data ?? []).map((row) => ({
     w: row.keyword,
     count: row.count,
@@ -295,21 +346,75 @@ async function fetchJournal(): Promise<JournalData> {
       : '',
     isNew: !!row.is_new,
   }));
-  // Patterns are heuristic for now: take top 3 keywords, build a sentence.
+
   const patterns: Pattern[] = constellation.slice(0, 3).map((c) => ({
     title: `"${c.w}"出现 ${c.count} 次`,
     freq: c.count >= 5 ? '高频' : '稳步上升',
     desc: `你在多次记录里反复使用了"${c.w}"。这是你正在形成的一个判断维度。`,
     from: c.from,
   }));
-  return { works: archive, constellation, patterns };
+
+  const entries = entriesRes.data ?? [];
+  const recentEntries: ArchiveWork[] = entries.slice(0, 5).map((e, i) => {
+    // The Supabase join returns the related row as either an object or array
+    // depending on relationship; handle both.
+    const wRaw = (e as { works: unknown }).works;
+    const w = (Array.isArray(wRaw) ? wRaw[0] : wRaw) as
+      | { no: string; exhibited_on: string; title: string; artist: string; image_path: string | null; region: 'east' | 'west' | null; short_label: string | null }
+      | null;
+    const d = w?.exhibited_on ? new Date(w.exhibited_on) : new Date(e.saved_at);
+    // Pull keywords this user used on this work (best-effort; only chips/text
+    // we wrote to keyword_uses).
+    const ans = (e.answers as Array<{ chip?: string; text?: string }> | null) ?? [];
+    const keywords = ans.map((a) => a.chip).filter((x): x is string => !!x);
+    return {
+      id: e.work_id,
+      no: w?.no ?? '—',
+      exhibitedOn: w?.exhibited_on,
+      date: `${d.getMonth() + 1}月${d.getDate()}日`,
+      title: w?.title ?? '（已删除作品）',
+      artist: w?.artist ?? '',
+      img: publicImageUrl(w?.image_path ?? null),
+      span: [3, 4, 3, 5, 2][i % 5],
+      pinned: false,
+      keywords,
+      reflection: w?.short_label ?? '',
+      region: w?.region ?? null,
+    };
+  });
+
+  const streak = computeStreak(entries.map((e) => e.saved_at as string));
+
+  return {
+    recentEntries,
+    constellation,
+    patterns,
+    stats: {
+      streak,
+      vocabulary: constellation.length,
+      notes: entries.length,
+      patterns: patterns.length,
+    },
+    hasUser: true,
+  };
 }
 
 export function useJournal(): LoadState<JournalData> {
   const [state, setState] = useState<LoadState<JournalData>>({
     data: isSupabaseConfigured
       ? null
-      : { works: PAST_WORKS, constellation: CONSTELLATION, patterns: PATTERNS },
+      : {
+          recentEntries: PAST_WORKS,
+          constellation: CONSTELLATION,
+          patterns: PATTERNS,
+          stats: {
+            streak: PAST_WORKS.length,
+            vocabulary: CONSTELLATION.length,
+            notes: PAST_WORKS.length,
+            patterns: PATTERNS.length,
+          },
+          hasUser: true,
+        },
     loading: isSupabaseConfigured,
     error: null,
   });

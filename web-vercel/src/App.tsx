@@ -153,17 +153,25 @@ function MuseumShell() {
             if (w.id) nav(`/work/${w.id}`);
           }}
           stats={{
-            visited: archiveWorks.length,
+            // "已观摩" = works the user has actually engaged with (answered
+            // notebook for). Falls back to 0 for anon and for users who
+            // haven't answered anything yet.
+            visited: journalData?.stats.notes ?? 0,
             pinned: archiveWorks.filter((w) => w.pinned).length,
             vocabulary: journalData?.constellation.length ?? 0,
           }}
+          hasUser={Boolean(session)}
+          onLogin={() => nav('/login?returnTo=/?tab=archive')}
         />
       )}
       {tab === 'journal' && journalData && (
         <JournalPage
-          works={journalData.works}
+          recentEntries={journalData.recentEntries}
           constellation={journalData.constellation}
           patterns={journalData.patterns}
+          stats={journalData.stats}
+          hasUser={journalData.hasUser}
+          onLogin={() => nav('/login?returnTo=/?tab=journal')}
         />
       )}
 
