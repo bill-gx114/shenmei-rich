@@ -399,7 +399,7 @@ async function fetchJournal(): Promise<JournalData> {
   };
 }
 
-export function useJournal(): LoadState<JournalData> {
+export function useJournal(): LoadState<JournalData> & { refresh: () => void } {
   const [state, setState] = useState<LoadState<JournalData>>({
     data: isSupabaseConfigured
       ? null
@@ -419,14 +419,19 @@ export function useJournal(): LoadState<JournalData> {
     error: null,
   });
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!isSupabaseConfigured) return;
+    setState((s) => ({ ...s, loading: true }));
     fetchJournal()
       .then((data) => setState({ data, loading: false, error: null }))
       .catch((err: Error) => setState({ data: null, loading: false, error: err.message }));
   }, []);
 
-  return state;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { ...state, refresh: load };
 }
 
 /**

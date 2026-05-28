@@ -1032,7 +1032,13 @@ button { font-family: inherit; cursor: pointer; }
 /* ── NOTEBOOK / journal ───────────────────────────────────────────────── */
 
 .journal-wrap { max-width: 1100px; margin: 0 auto; padding: 72px 40px 80px; }
-.journal-head { text-align: center; margin-bottom: 64px; }
+/* Align with .archive-head / .gallery-head — left-aligned, bottom border,
+   for visual consistency across tabs. */
+.journal-head {
+  margin-bottom: 56px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 28px;
+}
 .journal-head .lead {
   font-family: var(--display);
   font-style: italic;
@@ -1047,14 +1053,16 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 300;
   font-size: 48px;
   margin: 0;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: var(--ink);
 }
 .journal-head .sub {
   font-family: var(--display);
   font-style: italic;
   color: var(--ink-3);
-  font-size: 18px;
-  margin-top: 14px;
+  font-size: 16px;
+  margin-top: 12px;
   letter-spacing: 0.03em;
 }
 

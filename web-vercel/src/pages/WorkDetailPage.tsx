@@ -6,6 +6,7 @@ import {
   useWorkById,
   saveNotebookEntry,
   useArchive,
+  useJournal,
   useNotebookEntry,
   usePinState,
 } from '../hooks/useGallery';
@@ -32,6 +33,7 @@ export function WorkDetailPage() {
   const nav = useNavigate();
   const { data: work, loading, error, refresh } = useWorkById(id);
   const archive = useArchive();
+  const journal = useJournal();
   const [tweaks] = useTweaks();
   const [viewerOpen, setViewerOpen] = useState(false);
   const { session } = useSession();
@@ -99,7 +101,11 @@ export function WorkDetailPage() {
         onGoArchive={() => nav('/?tab=archive')}
         onBackToToday={() => nav('/')}
         notebookInitial={notebookEntry}
-        onNotebookSaved={notebookEntry.reload}
+        onNotebookSaved={() => {
+          notebookEntry.reload();
+          journal.refresh();
+          archive.refresh();
+        }}
         pinned={pin.pinned}
         onTogglePin={
           work.id

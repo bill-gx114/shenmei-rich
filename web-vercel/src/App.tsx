@@ -122,7 +122,14 @@ function MuseumShell() {
               : undefined
           }
           notebookInitial={notebookEntry}
-          onNotebookSaved={notebookEntry.reload}
+          onNotebookSaved={() => {
+            // Refresh everything that depends on notebook state — the
+            // journal stats (notes / streak), the constellation, AND the
+            // archive (so "已观摩" counter updates).
+            notebookEntry.reload();
+            journal.refresh();
+            archive.refresh();
+          }}
           pinned={pin.pinned}
           onTogglePin={
             todayWork.id
