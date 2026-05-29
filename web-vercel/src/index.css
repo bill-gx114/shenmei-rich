@@ -951,8 +951,10 @@ button { font-family: inherit; cursor: pointer; }
 
 .collection-wall {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 24px;
+  /* Uniform responsive grid — every tile equal width, rows stay aligned.
+     Auto-fills 3-4 columns on desktop, gracefully down to 2 on tablet. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 28px;
 }
 .coll-tile {
   position: relative;
@@ -968,6 +970,9 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 20px 40px -20px rgba(231,192,103,0.2);
 }
 .coll-tile .thumb {
+  /* Uniform square frame across the whole wall — keeps the grid aligned and
+     treats portrait & landscape works even-handedly (cover crops least with
+     a 1:1 target for mixed orientations). */
   aspect-ratio: 1 / 1;
   background: var(--bg-3);
   position: relative;
@@ -1017,17 +1022,20 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--gold-soft);
 }
 
-/* size variants for "wall" feel */
-.coll-tile.s-2 { grid-column: span 2; }
-.coll-tile.s-3 { grid-column: span 3; }
-.coll-tile.s-4 { grid-column: span 4; }
-.coll-tile.s-5 { grid-column: span 5; }
-.coll-tile.s-6 { grid-column: span 6; }
-
+/* Legacy "masonry wall" size variants are intentionally neutralised — the
+   random spans made the grid ragged with real data (lone tiles wrapping to
+   a half-empty row). Every tile is now one uniform cell. Classes kept so the
+   markup needn't change. */
+.coll-tile.s-2,
+.coll-tile.s-3,
+.coll-tile.s-4,
+.coll-tile.s-5,
+.coll-tile.s-6 { grid-column: auto; }
+.coll-tile.s-2 .thumb,
+.coll-tile.s-3 .thumb,
 .coll-tile.s-4 .thumb,
-.coll-tile.s-5 .thumb { aspect-ratio: 4 / 3; }
-.coll-tile.s-6 .thumb { aspect-ratio: 16 / 9; }
-.coll-tile.s-2 .thumb { aspect-ratio: 3 / 4; }
+.coll-tile.s-5 .thumb,
+.coll-tile.s-6 .thumb { aspect-ratio: 1 / 1; }
 
 /* ── NOTEBOOK / journal ───────────────────────────────────────────────── */
 
@@ -1338,12 +1346,8 @@ button { font-family: inherit; cursor: pointer; }
   .signage-r { display: none; }
   .gallery-wrap, .archive-wrap, .journal-wrap { padding-left: 20px; padding-right: 20px; }
   .gallery-head h1 { font-size: 38px; }
-  .collection-wall { grid-template-columns: repeat(6, 1fr); }
-  .coll-tile.s-6 { grid-column: span 6; }
-  .coll-tile.s-5 { grid-column: span 3; }
-  .coll-tile.s-4 { grid-column: span 3; }
-  .coll-tile.s-3 { grid-column: span 3; }
-  .coll-tile.s-2 { grid-column: span 3; }
+  /* tablet: slightly smaller min so we still get 2-3 tidy columns */
+  .collection-wall { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
 }
 
 /* phone */
