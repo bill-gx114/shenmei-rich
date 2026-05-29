@@ -74,6 +74,7 @@ function MuseumShell() {
     }
   };
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [insightVersion, setInsightVersion] = useState(0);
   const [tweaks] = useTweaks();
   const today = useTodayWork();
   const archive = useArchive();
@@ -124,11 +125,13 @@ function MuseumShell() {
           notebookInitial={notebookEntry}
           onNotebookSaved={() => {
             // Refresh everything that depends on notebook state — the
-            // journal stats (notes / streak), the constellation, AND the
-            // archive (so "已观摩" counter updates).
+            // journal stats (notes / streak), the constellation, the archive
+            // ("已观摩" counter), and bump insightVersion so the AI portrait
+            // regenerates with the new answer.
             notebookEntry.reload();
             journal.refresh();
             archive.refresh();
+            setInsightVersion((v) => v + 1);
           }}
           pinned={pin.pinned}
           onTogglePin={
@@ -175,9 +178,9 @@ function MuseumShell() {
         <JournalPage
           recentEntries={journalData.recentEntries}
           constellation={journalData.constellation}
-          patterns={journalData.patterns}
           stats={journalData.stats}
           hasUser={journalData.hasUser}
+          insightVersion={insightVersion}
           onLogin={() => nav('/login?returnTo=/?tab=journal')}
         />
       )}

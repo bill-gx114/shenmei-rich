@@ -1,24 +1,27 @@
-import type { ArchiveWork, ConstellationWord, Pattern } from '../lib/types';
+import type { ArchiveWork, ConstellationWord } from '../lib/types';
+import { useInsight } from '../hooks/useInsight';
 
 type Stats = { streak: number; vocabulary: number; notes: number; patterns: number };
 
 type Props = {
   recentEntries: ArchiveWork[];
   constellation: ConstellationWord[];
-  patterns: Pattern[];
   stats: Stats;
   hasUser: boolean;
+  /** Bumped after a notebook save so the AI insight re-fetches. */
+  insightVersion?: number;
   onLogin?: () => void;
 };
 
 export function JournalPage({
   recentEntries,
   constellation,
-  patterns,
   stats,
   hasUser,
+  insightVersion = 0,
   onLogin,
 }: Props) {
+  const insight = useInsight(hasUser, insightVersion);
   const entries = recentEntries.map((w) => {
     const m = w.date.match(/(\d+)月(\d+)日/);
     return { ...w, month: m?.[1] ?? '—', day: m?.[2] ?? '—' };
@@ -153,23 +156,48 @@ export function JournalPage({
             )}
           </section>
 
-          {patterns.length > 0 && (
-            <section className="journal-section">
-              <h2>
-                你正在形成的判断 <span className="small">patterns observed</span>
-              </h2>
-              {patterns.map((p, i) => (
-                <article className="pattern-card" key={i}>
-                  <div className="h">
-                    <div className="ttl">{p.title}</div>
-                    <div className="freq">{p.freq}</div>
-                  </div>
-                  <p className="desc">{p.desc}</p>
-                  <div className="from">出处：{p.from}</div>
-                </article>
-              ))}
-            </section>
-          )}
+          <section className="journal-section">
+            <h2>
+              你正在形成的判断 <span className="small">aesthetic portrait · AI</span>
+            </h2>
+
+            {insight.loading ? (
+              <p style={{ color: 'var(--ink-3)', fontFamily: 'var(--serif)', fontStyle: 'italic' }}>
+                策展人正在为你写审美肖像…
+              </p>
+            ) : insight.portrait ? (
+              <>
+                <p
+                  style={{
+                    fontFamily: 'var(--serif)',
+                    fontSize: 16,
+                    lineHeight: 2,
+                    color: 'var(--ink-2)',
+                    margin: '0 0 28px',
+                    paddingLeft: 16,
+                    borderLeft: '2px solid var(--gold-soft)',
+                  }}
+                >
+                  {insight.portrait}
+                </p>
+                {insight.tendencies.map((t, i) => (
+                  <article className="pattern-card" key={i}>
+                    <div className="h">
+                      <div className="ttl">{t.title}</div>
+                      <div className="freq">倾向</div>
+                    </div>
+                    <p className="desc">{t.desc}</p>
+                  </article>
+                ))}
+              </>
+            ) : (
+              <p style={{ color: 'var(--ink-3)', fontFamily: 'var(--serif)' }}>
+                {insight.error
+                  ? `暂时生成不了（${insight.error}）`
+                  : `再答几道题（已 ${insight.entryCount}/${insight.need ?? 3}），策展人就能为你总结正在形成的审美判断。`}
+              </p>
+            )}
+          </section>
         </>
       )}
     </div>
