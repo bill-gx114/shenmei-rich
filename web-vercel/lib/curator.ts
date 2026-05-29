@@ -96,6 +96,13 @@ export async function generateCuratorPack(input: CuratorPackInput): Promise<Cura
         { role: 'user', content: buildUserPrompt(input) },
       ],
       temperature: 0.7,
+      // The full pack (3 voice scripts × ~10 lines + hotspots + questions +
+      // vocabulary + notes) easily blows past the default 4096 output cap.
+      // When that happens json_object mode still returns *valid* JSON but
+      // silently closes the object early, dropping audioLines/questions/
+      // vocabulary — exactly the "hotspots present, rest empty" bug we hit.
+      // 8192 is deepseek-chat's output ceiling and fits the whole pack.
+      max_tokens: 8192,
       response_format: { type: 'json_object' },
     }),
   });

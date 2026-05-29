@@ -309,6 +309,8 @@ export default async () => {
   if (audioRows.length) {
     const r = await supabase.from('audio_lines').insert(audioRows);
     if (r.error) errors.push(`audio_lines: ${r.error.message}`);
+  } else {
+    errors.push('audio_lines: pack 里没有任何语音脚本（可能 DeepSeek 输出被截断）');
   }
   if (pack.questions?.length) {
     const rows = pack.questions.map((q, i) => ({
@@ -320,6 +322,8 @@ export default async () => {
     }));
     const r = await supabase.from('questions').insert(rows);
     if (r.error) errors.push(`questions: ${r.error.message}`);
+  } else {
+    errors.push('questions: pack 里没有题目');
   }
   if (pack.vocabulary?.length) {
     const rows = pack.vocabulary.map((v) => ({
