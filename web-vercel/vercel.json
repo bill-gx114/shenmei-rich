@@ -8,6 +8,6 @@
   ],
   "crons": [
     { "path": "/api/daily-curator", "schedule": "0 16 * * *" },
-    { "path": "/api/extend-seed", "schedule": "0 18 1 * *" }
+    { "path": "/api/extend-seed", "schedule": "0 18 * * 1" }
   ]
 }
