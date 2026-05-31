@@ -16,70 +16,72 @@ type Props = {
   onOpenWork?: (workId: string) => void;
 };
 
-/** Stable DOM id for a glossary entry, so a keyword tag can scroll to it. */
-function glossId(word: string): string {
-  return `gloss-${encodeURIComponent(word)}`;
+/** Compact, scannable term chip in the glossary grid. */
+function GlossaryChip({
+  word,
+  active,
+  onSelect,
+}: {
+  word: ConstellationWord;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button className={`gloss-chip${active ? ' active' : ''}`} onClick={onSelect}>
+      <span className="gloss-chip-term">
+        {word.w}
+        {word.isNew && <span className="gloss-new">new</span>}
+      </span>
+      <span className="gloss-chip-count">{word.count}</span>
+    </button>
+  );
 }
 
-/** One expandable dictionary entry: term → definition + source artworks. */
-function GlossaryEntry({
+/** Full-width detail panel for the selected term: definition + source works. */
+function GlossaryDetail({
   word,
-  open,
-  onToggle,
   onOpenWork,
 }: {
   word: ConstellationWord;
-  open: boolean;
-  onToggle: () => void;
   onOpenWork?: (workId: string) => void;
 }) {
   const sources = word.sources ?? [];
-  const expandable = Boolean(word.note) || sources.length > 0;
-
   return (
-    <article id={glossId(word.w)} className={`gloss-entry${open ? ' open' : ''}`}>
-      <button
-        className="gloss-head"
-        onClick={() => expandable && onToggle()}
-        style={{ cursor: expandable ? 'pointer' : 'default' }}
-      >
-        <span className="gloss-term">
-          {word.w}
-          {word.isNew && <span className="gloss-new">new</span>}
-        </span>
-        <span className="gloss-meta">
-          <span className="gloss-count">{word.count} 次</span>
-          {expandable && <span className="gloss-caret">{open ? '−' : '+'}</span>}
-        </span>
-      </button>
-      {open && (
-        <div className="gloss-body">
-          {word.note && <p className="gloss-def">{word.note}</p>}
-          {sources.length > 0 && (
-            <>
-              <div className="gloss-label">你在这些画里圈出过它</div>
-              <div className="gloss-sources">
-                {sources.map((s) => (
-                  <button
-                    key={s.workId}
-                    className="gloss-source"
-                    onClick={() => onOpenWork?.(s.workId)}
-                    title={`${s.title} · ${s.date}`}
-                  >
-                    {s.img ? (
-                      <img src={s.img} alt={s.title} loading="lazy" />
-                    ) : (
-                      <div className="gloss-source-ph" />
-                    )}
-                    <span className="gloss-source-title">{s.title}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+    <div className="gloss-detail" id="gloss-detail">
+      <div className="gloss-detail-head">
+        <span className="gloss-detail-term">{word.w}</span>
+        <span className="gloss-detail-count">出现 {word.count} 次 · 最近 {word.from}</span>
+      </div>
+      {word.note ? (
+        <p className="gloss-def">{word.note}</p>
+      ) : (
+        <p className="gloss-def gloss-def-empty">
+          这个词还没有策展人释义 —— 它来自你答题时的选择。
+        </p>
       )}
-    </article>
+      {sources.length > 0 && (
+        <>
+          <div className="gloss-label">你在这些画里圈出过它</div>
+          <div className="gloss-sources">
+            {sources.map((s) => (
+              <button
+                key={s.workId}
+                className="gloss-source"
+                onClick={() => onOpenWork?.(s.workId)}
+                title={`${s.title} · ${s.date}`}
+              >
+                {s.img ? (
+                  <img src={s.img} alt={s.title} loading="lazy" />
+                ) : (
+                  <div className="gloss-source-ph" />
+                )}
+                <span className="gloss-source-title">{s.title}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -93,17 +95,19 @@ export function JournalPage({
   onOpenWork,
 }: Props) {
   const insight = useInsight(hasUser, insightVersion);
-  // Accordion: at most one glossary entry open at a time. Keyword tags in the
-  // recent-observations list set this too, linking the notebook to the glossary.
+  // One selected term at a time; its detail shows in the panel below the grid.
+  // Keyword tags in the recent-observations list select a term too, linking the
+  // notebook to the glossary.
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const wordSet = new Set(constellation.map((c) => c.w));
+  const activeEntry = constellation.find((c) => c.w === activeWord) ?? null;
 
   const focusWord = (w: string) => {
     if (!wordSet.has(w)) return;
     setActiveWord(w);
-    // Let the entry expand, then scroll it into view.
+    // Let the detail panel render, then scroll it into view.
     requestAnimationFrame(() => {
-      document.getElementById(glossId(w))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('gloss-detail')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   };
 
@@ -222,17 +226,19 @@ export function JournalPage({
                 还没有词条 —— 答题时选的 chip 会自动收入这里。点开每个词，能看到它的释义，以及你在哪些画里圈出过它。
               </p>
             ) : (
-              <div className="glossary">
-                {constellation.map((c) => (
-                  <GlossaryEntry
-                    key={c.w}
-                    word={c}
-                    open={activeWord === c.w}
-                    onToggle={() => setActiveWord(activeWord === c.w ? null : c.w)}
-                    onOpenWork={onOpenWork}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="gloss-grid">
+                  {constellation.map((c) => (
+                    <GlossaryChip
+                      key={c.w}
+                      word={c}
+                      active={activeWord === c.w}
+                      onSelect={() => setActiveWord(activeWord === c.w ? null : c.w)}
+                    />
+                  ))}
+                </div>
+                {activeEntry && <GlossaryDetail word={activeEntry} onOpenWork={onOpenWork} />}
+              </>
             )}
           </section>
 
