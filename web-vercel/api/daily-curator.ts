@@ -23,7 +23,7 @@ export const config = { runtime: 'edge' };
 import { createClient } from '@supabase/supabase-js';
 import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { generateCuratorPack, VOICE_KEYS } from '../lib/curator.js';
+import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -153,8 +153,118 @@ function rowToSeed(r: SeedRow): SeedWork {
   };
 }
 
+/**
+ * Repair already-published global works that are missing audio_lines or
+ * questions (the symptom of an earlier output-truncation bug). Regenerates
+ * only the missing pieces so we don't disturb good data or burn tokens
+ * needlessly. Capped at 10 works per call.
+ */
+async function backfillIncompleteWorks(supabase: SupabaseClient): Promise<Response> {
+  const { data: works, error } = await supabase
+    .from('works')
+    .select(
+      'id, no, title, artist, short_label, audio_lines:audio_lines(count), questions:questions(count), vocabulary:vocabulary(count)',
+    )
+    .is('owner_id', null)
+    .order('exhibited_on', { ascending: false })
+    .limit(60);
+  if (error) {
+    return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
+  }
+
+  type Row = {
+    id: string;
+    no: string;
+    title: string;
+    artist: string;
+    short_label: string | null;
+    audio_lines: Array<{ count: number }>;
+    questions: Array<{ count: number }>;
+    vocabulary: Array<{ count: number }>;
+  };
+  const incomplete = ((works ?? []) as Row[]).filter(
+    (w) => (w.audio_lines[0]?.count ?? 0) === 0 || (w.questions[0]?.count ?? 0) === 0,
+  );
+
+  const repaired: Array<{ no: string; title: string; fixed: string[]; errors: string[] }> = [];
+  for (const w of incomplete.slice(0, 10)) {
+    const fixed: string[] = [];
+    const errs: string[] = [];
+    const input = { title: w.title, artist: w.artist, hint: w.short_label ?? undefined };
+
+    // Missing questions → regenerate the whole core pack (also fills hotspots/
+    // vocabulary if those were dropped too).
+    if ((w.questions[0]?.count ?? 0) === 0) {
+      try {
+        const core = await generateCorePack(input);
+        if (core.questions?.length) {
+          const r = await supabase.from('questions').insert(
+            core.questions.map((q, i) => ({
+              work_id: w.id,
+              q: q.q,
+              hint: q.hint,
+              options: q.options,
+              order_index: i,
+            })),
+          );
+          if (r.error) errs.push(`questions: ${r.error.message}`);
+          else fixed.push(`questions×${core.questions.length}`);
+        }
+        if ((w.vocabulary[0]?.count ?? 0) === 0 && core.vocabulary?.length) {
+          const r = await supabase.from('vocabulary').insert(
+            core.vocabulary.map((v) => ({
+              work_id: w.id,
+              word: v.word,
+              note: v.note,
+              is_new: v.isNew,
+            })),
+          );
+          if (r.error) errs.push(`vocabulary: ${r.error.message}`);
+          else fixed.push(`vocabulary×${core.vocabulary.length}`);
+        }
+      } catch (e) {
+        errs.push(`core: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    // Missing audio → regenerate the three voice scripts.
+    if ((w.audio_lines[0]?.count ?? 0) === 0) {
+      const audioLines = await generateAudioScripts(input);
+      const rows: Array<{
+        work_id: string;
+        t: number;
+        text: string;
+        order_index: number;
+        voice: string;
+      }> = [];
+      for (const voice of VOICE_KEYS) {
+        (audioLines?.[voice] ?? []).forEach((l, i) => {
+          rows.push({ work_id: w.id, t: l.t, text: l.text, order_index: i, voice });
+        });
+      }
+      if (rows.length) {
+        const r = await supabase.from('audio_lines').insert(rows);
+        if (r.error) errs.push(`audio_lines: ${r.error.message}`);
+        else fixed.push(`audio×${rows.length}`);
+      } else {
+        errs.push('audio_lines: 仍生成为空');
+      }
+    }
+
+    repaired.push({ no: w.no, title: w.title, fixed, errors: errs });
+  }
+
+  return jsonResponse(200, {
+    ok: true,
+    mode: 'backfill',
+    scanned: works?.length ?? 0,
+    incomplete: incomplete.length,
+    repaired,
+  });
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
-export default async () => {
+export default async (req: Request) => {
   const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
@@ -167,6 +277,14 @@ export default async () => {
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // Self-healing backfill: `?backfill=1` repairs already-published global
+  // works that are missing audio or questions (e.g. from an earlier truncation
+  // bug). Self-limiting — only touches incomplete global works, capped.
+  const url = new URL(req.url);
+  if (url.searchParams.get('backfill') === '1') {
+    return backfillIncompleteWorks(supabase);
+  }
 
   const today = beijingTodayISO();
 
@@ -225,22 +343,22 @@ export default async () => {
   // 3. Fetch a public-domain image from Wikipedia (best-effort).
   const imageUrl = await fetchWikipediaImage(seed);
 
-  // 4. Have DeepSeek write the curator pack.
-  let pack;
+  // 4. Have DeepSeek write the CORE pack (label + note + hotspots + questions
+  //    + vocabulary). This is the small, must-have interactive content — it's
+  //    generated and persisted FIRST so a later audio failure/timeout can't
+  //    take the questions down with it.
+  const curatorInput = { title: seed.title, artist: seed.artist, hint: seed.hint };
+  let core;
   try {
-    pack = await generateCuratorPack({
-      title: seed.title,
-      artist: seed.artist,
-      hint: seed.hint,
-    });
+    core = await generateCorePack(curatorInput);
   } catch (err) {
     return jsonResponse(502, {
-      error: '生成策展包失败',
+      error: '生成核心策展包失败',
       detail: err instanceof Error ? err.message : String(err),
     });
   }
 
-  // 5. Insert work + child rows via service role (RLS bypassed).
+  // 5. Insert work + core child rows via service role (RLS bypassed).
   const { data: work, error: workErr } = await supabase
     .from('works')
     .insert({
@@ -257,8 +375,8 @@ export default async () => {
       location: seed.location,
       region: seed.region,
       room: `今日展厅 · No. ${no}`,
-      short_label: pack.shortLabel,
-      curator_note: pack.curatorNote ?? null,
+      short_label: core.shortLabel,
+      curator_note: core.curatorNote ?? null,
       image_path: imageUrl,
       total: 365,
     })
@@ -273,8 +391,8 @@ export default async () => {
   // see what made it through.
   const errors: string[] = [];
 
-  if (pack.hotspots?.length) {
-    const rows = pack.hotspots.map((h, i) => ({
+  if (core.hotspots?.length) {
+    const rows = core.hotspots.map((h, i) => ({
       work_id: workId,
       x: h.x,
       y: h.y,
@@ -285,35 +403,8 @@ export default async () => {
     const r = await supabase.from('hotspots').insert(rows);
     if (r.error) errors.push(`hotspots: ${r.error.message}`);
   }
-  // pack.audioLines is now keyed by voice. Flatten into one big insert with
-  // (voice, order_index) per row so the frontend can fetch per-voice.
-  const audioRows: Array<{
-    work_id: string;
-    t: number;
-    text: string;
-    order_index: number;
-    voice: string;
-  }> = [];
-  for (const voice of VOICE_KEYS) {
-    const lines = pack.audioLines?.[voice] ?? [];
-    lines.forEach((l, i) => {
-      audioRows.push({
-        work_id: workId,
-        t: l.t,
-        text: l.text,
-        order_index: i,
-        voice,
-      });
-    });
-  }
-  if (audioRows.length) {
-    const r = await supabase.from('audio_lines').insert(audioRows);
-    if (r.error) errors.push(`audio_lines: ${r.error.message}`);
-  } else {
-    errors.push('audio_lines: pack 里没有任何语音脚本（可能 DeepSeek 输出被截断）');
-  }
-  if (pack.questions?.length) {
-    const rows = pack.questions.map((q, i) => ({
+  if (core.questions?.length) {
+    const rows = core.questions.map((q, i) => ({
       work_id: workId,
       q: q.q,
       hint: q.hint,
@@ -325,8 +416,8 @@ export default async () => {
   } else {
     errors.push('questions: pack 里没有题目');
   }
-  if (pack.vocabulary?.length) {
-    const rows = pack.vocabulary.map((v) => ({
+  if (core.vocabulary?.length) {
+    const rows = core.vocabulary.map((v) => ({
       work_id: workId,
       word: v.word,
       note: v.note,
@@ -334,6 +425,31 @@ export default async () => {
     }));
     const r = await supabase.from('vocabulary').insert(rows);
     if (r.error) errors.push(`vocabulary: ${r.error.message}`);
+  }
+
+  // 6. Audio scripts — generated in a SEPARATE DeepSeek call AFTER the core
+  //    content is safely persisted, so a truncation/timeout here can't drop
+  //    the questions. Flatten the three voice variants into one insert keyed
+  //    by (voice, order_index) so the frontend can fetch per-voice.
+  const audioLines = await generateAudioScripts(curatorInput);
+  const audioRows: Array<{
+    work_id: string;
+    t: number;
+    text: string;
+    order_index: number;
+    voice: string;
+  }> = [];
+  for (const voice of VOICE_KEYS) {
+    const lines = audioLines?.[voice] ?? [];
+    lines.forEach((l, i) => {
+      audioRows.push({ work_id: workId, t: l.t, text: l.text, order_index: i, voice });
+    });
+  }
+  if (audioRows.length) {
+    const r = await supabase.from('audio_lines').insert(audioRows);
+    if (r.error) errors.push(`audio_lines: ${r.error.message}`);
+  } else {
+    errors.push('audio_lines: 语音脚本生成为空（DeepSeek 截断或返回空，已重试一次）');
   }
 
   return jsonResponse(200, {
