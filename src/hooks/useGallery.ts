@@ -88,7 +88,7 @@ async function hydrateWork(w: any): Promise<Work> {
   };
 }
 
-async function fetchTodayWork(): Promise<Work | null> {
+async function queryTodayWork(): Promise<Work | null> {
   // Prefer the user's own work for today; fall back to the global daily work
   // published by the cron. RLS already filters to (mine | global), so we just
   // need to order so that NULL owner_id (= global) comes last.
@@ -102,6 +102,30 @@ async function fetchTodayWork(): Promise<Work | null> {
   if (error) throw error;
   if (!works || !works.length) return null;
   return hydrateWork(works[0]);
+}
+
+// Self-heal: only one trigger per page load, so concurrent visitors / re-renders
+// don't fire the (idempotent, but slow) generator repeatedly.
+let selfHealAttempted = false;
+
+async function fetchTodayWork(): Promise<Work | null> {
+  const existing = await queryTodayWork();
+  if (existing) return existing;
+
+  // No work for today. The daily cron (Vercel Hobby tier) doesn't guarantee
+  // exact timing and can occasionally be skipped, so we lazily trigger the
+  // generator on first read. /api/daily-curator is idempotent — if today's
+  // work already exists it returns early — so this is safe to call.
+  if (selfHealAttempted) return null;
+  selfHealAttempted = true;
+  try {
+    const r = await fetch('/api/daily-curator', { method: 'GET' });
+    if (!r.ok) return null;
+    // Generation finished (or was already done) — re-query once.
+    return await queryTodayWork();
+  } catch {
+    return null;
+  }
 }
 
 async function fetchWorkById(id: string): Promise<Work | null> {
