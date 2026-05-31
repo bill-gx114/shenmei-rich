@@ -182,6 +182,7 @@ function MuseumShell() {
           hasUser={journalData.hasUser}
           insightVersion={insightVersion}
           onLogin={() => nav('/login?returnTo=/?tab=journal')}
+          onOpenWork={(id) => nav(`/work/${id}`)}
         />
       )}
 

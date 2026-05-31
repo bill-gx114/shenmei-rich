@@ -5,6 +5,7 @@ import type {
   ConstellationWord,
   Pattern,
   Work,
+  WordSource,
 } from '../lib/types';
 import { CONSTELLATION, PAST_WORKS, PATTERNS, TODAY_WORK } from '../lib/mock';
 
@@ -358,7 +359,7 @@ async function fetchJournal(): Promise<JournalData> {
 
   // Pull everything user-scoped in parallel. RLS already restricts each table
   // to owner_id = auth.uid(); we still add explicit .eq for defense in depth.
-  const [conRes, entriesRes] = await Promise.all([
+  const [conRes, entriesRes, usesRes, vocabRes] = await Promise.all([
     supabase
       .from('v_user_constellation')
       .select('*')
@@ -369,7 +370,46 @@ async function fetchJournal(): Promise<JournalData> {
       .select('saved_at, work_id, answers, works(no, exhibited_on, title, artist, image_path, region, short_label)')
       .eq('owner_id', user.id)
       .order('saved_at', { ascending: false }),
+    // Every keyword hit this user logged, with the artwork it came from — so
+    // each dictionary word can link back to the paintings where you used it.
+    supabase
+      .from('keyword_uses')
+      .select('keyword, work_id, works(no, title, image_path, exhibited_on)')
+      .eq('owner_id', user.id),
+    // Curator definitions. vocabulary is per-work; we fold it into a word→note
+    // map so a dictionary entry can show what the term actually means.
+    supabase.from('vocabulary').select('word, note'),
   ]);
+
+  // word → curator definition (first non-empty wins).
+  const noteByWord = new Map<string, string>();
+  for (const v of (vocabRes.data ?? []) as Array<{ word: string; note: string | null }>) {
+    if (v.word && v.note && !noteByWord.has(v.word)) noteByWord.set(v.word, v.note);
+  }
+
+  // word → list of source artworks (deduped by work).
+  type UseRow = {
+    keyword: string;
+    work_id: string;
+    works: { no: string; title: string; image_path: string | null; exhibited_on: string } | Array<{ no: string; title: string; image_path: string | null; exhibited_on: string }> | null;
+  };
+  const sourcesByWord = new Map<string, WordSource[]>();
+  for (const u of (usesRes.data ?? []) as UseRow[]) {
+    const wRaw = u.works;
+    const w = Array.isArray(wRaw) ? wRaw[0] : wRaw;
+    if (!w) continue;
+    const list = sourcesByWord.get(u.keyword) ?? [];
+    if (list.some((s) => s.workId === u.work_id)) continue;
+    const d = new Date(w.exhibited_on);
+    list.push({
+      workId: u.work_id,
+      no: w.no,
+      title: w.title,
+      img: publicImageUrl(w.image_path),
+      date: `${d.getMonth() + 1}月${d.getDate()}日`,
+    });
+    sourcesByWord.set(u.keyword, list);
+  }
 
   const constellation: ConstellationWord[] = (conRes.data ?? []).map((row) => ({
     w: row.keyword,
@@ -378,6 +418,8 @@ async function fetchJournal(): Promise<JournalData> {
       ? new Date(row.last_used_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
       : '',
     isNew: !!row.is_new,
+    note: noteByWord.get(row.keyword),
+    sources: sourcesByWord.get(row.keyword) ?? [],
   }));
 
   const patterns: Pattern[] = constellation.slice(0, 3).map((c) => ({

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ArchiveWork, ConstellationWord } from '../lib/types';
 import { useInsight } from '../hooks/useInsight';
 
@@ -11,7 +12,68 @@ type Props = {
   /** Bumped after a notebook save so the AI insight re-fetches. */
   insightVersion?: number;
   onLogin?: () => void;
+  /** Jump to a work's detail page (from a dictionary entry's source list). */
+  onOpenWork?: (workId: string) => void;
 };
+
+/** One expandable dictionary entry: term → definition + source artworks. */
+function GlossaryEntry({
+  word,
+  onOpenWork,
+}: {
+  word: ConstellationWord;
+  onOpenWork?: (workId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const sources = word.sources ?? [];
+  const expandable = Boolean(word.note) || sources.length > 0;
+
+  return (
+    <article className={`gloss-entry${open ? ' open' : ''}`}>
+      <button
+        className="gloss-head"
+        onClick={() => expandable && setOpen((o) => !o)}
+        style={{ cursor: expandable ? 'pointer' : 'default' }}
+      >
+        <span className="gloss-term">
+          {word.w}
+          {word.isNew && <span className="gloss-new">new</span>}
+        </span>
+        <span className="gloss-meta">
+          <span className="gloss-count">{word.count} 次</span>
+          {expandable && <span className="gloss-caret">{open ? '−' : '+'}</span>}
+        </span>
+      </button>
+      {open && (
+        <div className="gloss-body">
+          {word.note && <p className="gloss-def">{word.note}</p>}
+          {sources.length > 0 && (
+            <>
+              <div className="gloss-label">你在这些画里圈出过它</div>
+              <div className="gloss-sources">
+                {sources.map((s) => (
+                  <button
+                    key={s.workId}
+                    className="gloss-source"
+                    onClick={() => onOpenWork?.(s.workId)}
+                    title={`${s.title} · ${s.date}`}
+                  >
+                    {s.img ? (
+                      <img src={s.img} alt={s.title} loading="lazy" />
+                    ) : (
+                      <div className="gloss-source-ph" />
+                    )}
+                    <span className="gloss-source-title">{s.title}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
 
 export function JournalPage({
   recentEntries,
@@ -20,6 +82,7 @@ export function JournalPage({
   hasUser,
   insightVersion = 0,
   onLogin,
+  onOpenWork,
 }: Props) {
   const insight = useInsight(hasUser, insightVersion);
   const entries = recentEntries.map((w) => {
@@ -122,35 +185,16 @@ export function JournalPage({
 
           <section className="journal-section">
             <h2>
-              审美词典 <span className="small">vocabulary constellation · {constellation.length} 词</span>
+              审美词典 <span className="small">your glossary · {constellation.length} 词</span>
             </h2>
             {constellation.length === 0 ? (
               <p style={{ color: 'var(--ink-3)', fontFamily: 'var(--serif)' }}>
-                还没有词条 —— 答题时选的 chip 会自动收入这里。
+                还没有词条 —— 答题时选的 chip 会自动收入这里。点开每个词，能看到它的释义，以及你在哪些画里圈出过它。
               </p>
             ) : (
-              <div className="constellation">
+              <div className="glossary">
                 {constellation.map((c) => (
-                  <div className="con-word" key={c.w}>
-                    <div className="w">
-                      {c.w}
-                      {c.isNew && (
-                        <span
-                          style={{
-                            color: 'var(--gold)',
-                            fontSize: 11,
-                            marginLeft: 6,
-                            fontFamily: 'var(--display)',
-                            fontStyle: 'italic',
-                          }}
-                        >
-                          new
-                        </span>
-                      )}
-                    </div>
-                    <div className="count">出现 {c.count} 次</div>
-                    <div className="from">最近 · {c.from}</div>
-                  </div>
+                  <GlossaryEntry key={c.w} word={c} onOpenWork={onOpenWork} />
                 ))}
               </div>
             )}

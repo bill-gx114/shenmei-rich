@@ -65,11 +65,24 @@ export type Pattern = {
   from: string;
 };
 
+/** An artwork where the user used a given keyword. */
+export type WordSource = {
+  workId: string;
+  no: string;
+  title: string;
+  img: string;
+  date: string;
+};
+
 export type ConstellationWord = {
   w: string;
   count: number;
   from: string;
   isNew?: boolean;
+  /** Curator definition for this term, if one exists in any work's vocabulary. */
+  note?: string;
+  /** The artworks where the user picked / wrote this word. */
+  sources?: WordSource[];
 };
 
 export type Tweaks = {
