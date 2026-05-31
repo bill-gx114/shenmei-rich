@@ -405,11 +405,18 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 24px;
   color: var(--ink-3);
   font-size: 12px;
   letter-spacing: 0.12em;
 }
 .stage-caption .hint {
+  /* Take the remaining space and wrap long hotspot detail text instead of
+     pushing the controls out of shape. min-width:0 lets a flex item shrink
+     below its content width so wrapping actually kicks in. */
+  flex: 1;
+  min-width: 0;
+  line-height: 1.6;
   font-family: var(--display);
   font-style: italic;
   font-size: 14px;
@@ -419,6 +426,7 @@ button { font-family: inherit; cursor: pointer; }
 .stage-caption .controls {
   display: flex;
   gap: 16px;
+  flex-shrink: 0;
 }
 .stage-caption .controls button {
   background: transparent;
@@ -430,6 +438,7 @@ button { font-family: inherit; cursor: pointer; }
   font-family: var(--sans);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  white-space: nowrap;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 .stage-caption .controls button:hover {
