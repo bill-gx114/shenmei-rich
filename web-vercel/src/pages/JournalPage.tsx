@@ -16,23 +16,31 @@ type Props = {
   onOpenWork?: (workId: string) => void;
 };
 
+/** Stable DOM id for a glossary entry, so a keyword tag can scroll to it. */
+function glossId(word: string): string {
+  return `gloss-${encodeURIComponent(word)}`;
+}
+
 /** One expandable dictionary entry: term → definition + source artworks. */
 function GlossaryEntry({
   word,
+  open,
+  onToggle,
   onOpenWork,
 }: {
   word: ConstellationWord;
+  open: boolean;
+  onToggle: () => void;
   onOpenWork?: (workId: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const sources = word.sources ?? [];
   const expandable = Boolean(word.note) || sources.length > 0;
 
   return (
-    <article className={`gloss-entry${open ? ' open' : ''}`}>
+    <article id={glossId(word.w)} className={`gloss-entry${open ? ' open' : ''}`}>
       <button
         className="gloss-head"
-        onClick={() => expandable && setOpen((o) => !o)}
+        onClick={() => expandable && onToggle()}
         style={{ cursor: expandable ? 'pointer' : 'default' }}
       >
         <span className="gloss-term">
@@ -85,6 +93,20 @@ export function JournalPage({
   onOpenWork,
 }: Props) {
   const insight = useInsight(hasUser, insightVersion);
+  // Accordion: at most one glossary entry open at a time. Keyword tags in the
+  // recent-observations list set this too, linking the notebook to the glossary.
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const wordSet = new Set(constellation.map((c) => c.w));
+
+  const focusWord = (w: string) => {
+    if (!wordSet.has(w)) return;
+    setActiveWord(w);
+    // Let the entry expand, then scroll it into view.
+    requestAnimationFrame(() => {
+      document.getElementById(glossId(w))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
   const entries = recentEntries.map((w) => {
     const m = w.date.match(/(\d+)月(\d+)日/);
     return { ...w, month: m?.[1] ?? '—', day: m?.[2] ?? '—' };
@@ -170,11 +192,19 @@ export function JournalPage({
                       <div className="artist">{e.artist}</div>
                       <p className="reflection">{e.reflection}</p>
                       <div className="tags">
-                        {e.keywords.map((k) => (
-                          <span className="tag" key={k}>
-                            #{k}
-                          </span>
-                        ))}
+                        {e.keywords.map((k) => {
+                          const linked = wordSet.has(k);
+                          return (
+                            <span
+                              className={`tag${linked ? ' tag-linked' : ''}`}
+                              key={k}
+                              onClick={linked ? () => focusWord(k) : undefined}
+                              title={linked ? '在审美词典里查看这个词' : undefined}
+                            >
+                              #{k}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </article>
@@ -194,7 +224,13 @@ export function JournalPage({
             ) : (
               <div className="glossary">
                 {constellation.map((c) => (
-                  <GlossaryEntry key={c.w} word={c} onOpenWork={onOpenWork} />
+                  <GlossaryEntry
+                    key={c.w}
+                    word={c}
+                    open={activeWord === c.w}
+                    onToggle={() => setActiveWord(activeWord === c.w ? null : c.w)}
+                    onOpenWork={onOpenWork}
+                  />
                 ))}
               </div>
             )}

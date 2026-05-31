@@ -1198,6 +1198,18 @@ button { font-family: inherit; cursor: pointer; }
   padding: 3px 9px;
   border: 1px solid var(--line);
   letter-spacing: 0.08em;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+/* Tags that have a matching glossary entry are clickable — they jump to it. */
+.entry .tag-linked {
+  cursor: pointer;
+  color: var(--ink-2);
+  border-color: var(--line-strong);
+}
+.entry .tag-linked:hover {
+  color: var(--gold);
+  border-color: var(--gold-soft);
+  background: var(--gold-tint);
 }
 
 /* word constellation */
