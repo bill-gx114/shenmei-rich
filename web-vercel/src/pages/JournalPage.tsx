@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ArchiveWork, ConstellationWord } from '../lib/types';
 import { useInsight } from '../hooks/useInsight';
+import { track } from '../lib/track';
 
 type Stats = { streak: number; vocabulary: number; notes: number; patterns: number };
 
@@ -105,10 +106,17 @@ export function JournalPage({
   const focusWord = (w: string) => {
     if (!wordSet.has(w)) return;
     setActiveWord(w);
+    track('glossary_term_open', { word: w, via: 'tag' });
     // Let the detail panel render, then scroll it into view.
     requestAnimationFrame(() => {
       document.getElementById('gloss-detail')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+  };
+
+  const selectChip = (w: string) => {
+    const next = activeWord === w ? null : w;
+    setActiveWord(next);
+    if (next) track('glossary_term_open', { word: w, via: 'chip' });
   };
 
   const entries = recentEntries.map((w) => {
@@ -233,11 +241,19 @@ export function JournalPage({
                       key={c.w}
                       word={c}
                       active={activeWord === c.w}
-                      onSelect={() => setActiveWord(activeWord === c.w ? null : c.w)}
+                      onSelect={() => selectChip(c.w)}
                     />
                   ))}
                 </div>
-                {activeEntry && <GlossaryDetail word={activeEntry} onOpenWork={onOpenWork} />}
+                {activeEntry && (
+                  <GlossaryDetail
+                    word={activeEntry}
+                    onOpenWork={(id) => {
+                      track('glossary_source_click', { word: activeEntry.w, workId: id });
+                      onOpenWork?.(id);
+                    }}
+                  />
+                )}
               </>
             )}
           </section>

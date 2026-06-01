@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../hooks/useSession';
+import { track } from '../lib/track';
 
 type Mode = 'signin' | 'signup';
 
@@ -59,6 +60,7 @@ export function LoginPage() {
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        track('login', { method: 'password' });
         // onAuthStateChange in useSession will unmount this component.
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -84,6 +86,7 @@ export function LoginPage() {
     setErr(null);
     setBusy(true);
     try {
+      track('login', { method: 'github' });
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: { redirectTo: window.location.origin + returnTo },

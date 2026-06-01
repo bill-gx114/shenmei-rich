@@ -8,6 +8,7 @@ import type {
   WordSource,
 } from '../lib/types';
 import { CONSTELLATION, PAST_WORKS, PATTERNS, TODAY_WORK } from '../lib/mock';
+import { track } from '../lib/track';
 
 type LoadState<T> = { data: T | null; loading: boolean; error: string | null };
 
@@ -573,6 +574,17 @@ export async function saveNotebookEntry(
     const { error: insErr } = await supabase.from('keyword_uses').insert(rows);
     if (insErr) throw insErr;
   }
+
+  // Which of the three questions got a real answer (chip or free text) — lets
+  // us see which questions are skipped, and the conversion to a saved entry.
+  const answeredFlags = answers.map((a) => Boolean((a.chip && a.chip.trim()) || (a.text && a.text.trim())));
+  track('notebook_save', {
+    workId,
+    total: answers.length,
+    answered: answeredFlags.filter(Boolean).length,
+    answeredIndices: answeredFlags.map((ok, i) => (ok ? i : -1)).filter((i) => i >= 0),
+    keywords,
+  });
 }
 
 export async function fetchNotebookEntry(workId: string) {

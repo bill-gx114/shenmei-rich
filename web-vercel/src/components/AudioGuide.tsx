@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AudioGuideData } from '../lib/types';
 import { TTSPlayer, isTTSSupported, narratorVoiceToRate, onVoicesReady } from '../lib/tts';
 import { EdgeTTSPlayer, narratorVoiceToEdgeVoice } from '../lib/tts-edge';
+import { track } from '../lib/track';
 
 type Props = {
   guide: AudioGuideData;
@@ -153,6 +154,7 @@ export function AudioGuide({
       if (activeIdx < 0) setActiveIdx(0);
       player.play(start);
       setPlaying(true);
+      track('audio_play', { voice: narratorVoice, engine: ttsEngine });
     }
   };
 

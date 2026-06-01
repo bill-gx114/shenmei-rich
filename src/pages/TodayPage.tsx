@@ -4,6 +4,7 @@ import { WallLabel } from '../components/WallLabel';
 import { AudioGuide } from '../components/AudioGuide';
 import { Notebook } from '../components/Notebook';
 import type { Hotspot, Tweaks, Work } from '../lib/types';
+import { track } from '../lib/track';
 
 type Props = {
   work: Work;
@@ -76,6 +77,12 @@ export function TodayPage({
     setFocusedSpot(null);
     setSaveErr(null);
   }, [work.id, work.hotspots]);
+
+  // One work_view per distinct work shown.
+  useEffect(() => {
+    if (work.id) track('work_view', { workId: work.id, no: work.no, mode });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [work.id]);
 
   const canEdit = Boolean(onSaveHotspots);
   // While editing, the Artwork shows the draft; otherwise the saved version.
@@ -204,10 +211,25 @@ export function TodayPage({
                 </>
               ) : (
                 <>
-                  <button className={showHotspots ? 'on' : ''} onClick={() => setShowHotspots((s) => !s)}>
+                  <button
+                    className={showHotspots ? 'on' : ''}
+                    onClick={() =>
+                      setShowHotspots((s) => {
+                        track('hotspots_toggle', { workId: work.id, on: !s });
+                        return !s;
+                      })
+                    }
+                  >
                     {showHotspots ? '·  看点已开  ·' : '看点'}
                   </button>
-                  <button onClick={onOpenViewer}>放大细看</button>
+                  <button
+                    onClick={() => {
+                      track('viewer_open', { workId: work.id });
+                      onOpenViewer();
+                    }}
+                  >
+                    放大细看
+                  </button>
                   {onTogglePin && (
                     <button
                       className={pinned ? 'on' : ''}

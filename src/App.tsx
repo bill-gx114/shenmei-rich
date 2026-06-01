@@ -28,6 +28,7 @@ import {
   usePinState,
 } from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
+import { track } from './lib/track';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { useSession } from './hooks/useSession';
 import type { Session } from '@supabase/supabase-js';
@@ -67,6 +68,7 @@ function MuseumShell() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') ?? 'today';
   const setTab = (next: string) => {
+    if (next !== tab) track('tab_view', { tab: next });
     if (next === 'today') {
       setSearchParams({}, { replace: true });
     } else {
@@ -88,6 +90,12 @@ function MuseumShell() {
   const pin = usePinState(todayWork?.id);
 
   const { configured, session } = useSession();
+
+  // One app_open per page load (initial tab + whether the visitor is signed in).
+  useEffect(() => {
+    track('app_open', { tab, hasUser: Boolean(session) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="museum">
@@ -139,6 +147,7 @@ function MuseumShell() {
               ? session
                 ? async () => {
                     await pin.toggle();
+                    track('pin_toggle', { workId: todayWork.id, pinned: !pin.pinned });
                     archive.refresh();
                   }
                 : () => nav('/login?returnTo=/')
