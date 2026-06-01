@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import { Signage } from './components/Signage';
 import { Viewer } from './components/Viewer';
@@ -29,6 +29,11 @@ import {
 } from './hooks/useGallery';
 import { saveHotspots } from './lib/saveHotspots';
 import { track } from './lib/track';
+import {
+  savePendingNotebook,
+  readPendingNotebook,
+  clearPendingNotebook,
+} from './lib/pendingNotebook';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { useSession } from './hooks/useSession';
 import type { Session } from '@supabase/supabase-js';
@@ -97,6 +102,32 @@ function MuseumShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // After an anonymous visitor logs in, restore and auto-save the answers they
+  // wrote before being bounced to login — so the round-trip is seamless.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    const id = todayWork?.id;
+    if (!session || !id || restoredRef.current) return;
+    const pending = readPendingNotebook(id);
+    if (!pending) return;
+    restoredRef.current = true;
+    (async () => {
+      try {
+        await saveNotebookEntry(id, pending, todayWork?.vocabulary ?? []);
+        clearPendingNotebook();
+        track('notebook_save_restored', { workId: id });
+        notebookEntry.reload();
+        journal.refresh();
+        archive.refresh();
+        setInsightVersion((v) => v + 1);
+      } catch {
+        // Leave the pending answers in place for a future retry.
+        restoredRef.current = false;
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, todayWork?.id]);
+
   return (
     <div className="museum">
       <Signage
@@ -127,9 +158,16 @@ function MuseumShell() {
             todayWork.id
               ? session
                 ? (answers) => saveNotebookEntry(todayWork.id!, answers, todayWork.vocabulary)
-                : () => nav('/login?returnTo=/')
+                : (answers) => {
+                    // Anonymous: keep what they wrote, then send them to log
+                    // in. We restore + auto-save on return (see effect below).
+                    savePendingNotebook(todayWork.id!, answers);
+                    track('notebook_save_blocked_anon', { workId: todayWork.id });
+                    nav('/login?returnTo=/');
+                  }
               : undefined
           }
+          requiresLogin={!session}
           notebookInitial={notebookEntry}
           onNotebookSaved={() => {
             // Refresh everything that depends on notebook state — the

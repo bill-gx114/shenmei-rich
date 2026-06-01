@@ -22,6 +22,8 @@ type Props = {
   onSaveHotspots?: (hotspots: Hotspot[]) => Promise<void>;
   notebookInitial?: { answers: { chip: string; text: string }[] | null; savedAt: string | null };
   onNotebookSaved?: () => void;
+  /** True when the visitor isn't signed in — saving will route through login. */
+  requiresLogin?: boolean;
   /** Current pinned state — comes from DB. */
   pinned?: boolean;
   /** Toggle handler. When undefined, the pin button is hidden (e.g. anon user). */
@@ -59,6 +61,7 @@ export function TodayPage({
   onSaveHotspots,
   notebookInitial,
   onNotebookSaved,
+  requiresLogin,
   pinned,
   onTogglePin,
 }: Props) {
@@ -269,6 +272,7 @@ export function TodayPage({
         }
         initialAnswers={notebookInitial?.answers ?? undefined}
         initialSavedAt={notebookInitial?.savedAt ?? null}
+        requiresLogin={requiresLogin}
       />
 
       <section className="corridor">

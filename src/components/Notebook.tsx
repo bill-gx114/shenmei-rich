@@ -8,11 +8,13 @@ type Props = {
   initialAnswers?: Answer[];
   initialSavedAt?: string | null;
   onSave?: (answers: Answer[]) => Promise<void> | void;
+  /** Anonymous visitor — saving routes through login (answers are preserved). */
+  requiresLogin?: boolean;
 };
 
 const NUMERALS = ['一', '二', '三', '四', '五'];
 
-export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props) {
+export function Notebook({ work, initialAnswers, initialSavedAt, onSave, requiresLogin }: Props) {
   const seed = (): Answer[] =>
     initialAnswers && initialAnswers.length === work.questions.length
       ? initialAnswers
@@ -76,6 +78,8 @@ export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props
               <>
                 已收入 <span className="ok">{savedAt}</span> 的手账
               </>
+            ) : requiresLogin && completed >= work.questions.length ? (
+              <>登录即可把这份观察收进你的手账 · 答案会替你留着</>
             ) : (
               <>
                 完成 {completed} / {work.questions.length} 题 · 可以反复回看修改
@@ -92,7 +96,13 @@ export function Notebook({ work, initialAnswers, initialSavedAt, onSave }: Props
                 : undefined
             }
           >
-            {savedAt ? '已收入手账' : saving ? '正在收入…' : '收入手账'}
+            {savedAt
+              ? '已收入手账'
+              : saving
+                ? '正在收入…'
+                : requiresLogin
+                  ? '登录并收入手账'
+                  : '收入手账'}
           </button>
         </div>
       </div>
