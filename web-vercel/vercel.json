@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/u/:handle", "destination": "/api/u?handle=:handle" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [

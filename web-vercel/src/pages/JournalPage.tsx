@@ -1,7 +1,132 @@
 import { useState } from 'react';
 import type { ArchiveWork, ConstellationWord } from '../lib/types';
 import { useInsight } from '../hooks/useInsight';
+import { useMyProfile } from '../hooks/useProfile';
+import { shareLink } from '../lib/share';
 import { track } from '../lib/track';
+
+/** Set up handle + display name, toggle public, and share the profile link. */
+function ShareCard() {
+  const { profile, loading, save } = useMyProfile(true);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [handle, setHandle] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  if (loading) return null;
+
+  const shareUrl = profile.handle ? `${location.origin}/u/${profile.handle}` : '';
+  const ready = profile.isPublic && profile.handle;
+
+  const beginEdit = () => {
+    setName(profile.displayName ?? '');
+    setHandle(profile.handle ?? '');
+    setErr(null);
+    setEditing(true);
+  };
+
+  const onPublish = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await save({ displayName: name.trim() || '一位观众', handle, isPublic: true });
+    setBusy(false);
+    if (!r.ok) {
+      setErr(r.error ?? '保存失败');
+      return;
+    }
+    setEditing(false);
+    track('profile_published', {});
+  };
+
+  const onShare = async () => {
+    const res = await shareLink({
+      url: shareUrl,
+      title: `${profile.displayName ?? '我'} 的审美主页`,
+      text: '这是我在审美日课长出的眼睛 —— ',
+      context: 'profile_owner',
+    });
+    if (res === 'copied') {
+      setToast('链接已复制');
+      setTimeout(() => setToast(null), 1800);
+    }
+  };
+
+  const setPrivate = async () => {
+    await save({ isPublic: false });
+    track('profile_unpublished', {});
+  };
+
+  return (
+    <section className="share-card">
+      <div className="share-card-head">
+        <div>
+          <h3>分享你的审美主页</h3>
+          <div className="sub">把你长出的眼睛，做成一张可分享的数字名片</div>
+        </div>
+        {ready && !editing && (
+          <button className="btn-primary share-card-btn" onClick={onShare}>
+            ↗ 分享
+          </button>
+        )}
+      </div>
+
+      {!ready && !editing && (
+        <div className="share-card-body">
+          <p className="share-card-hint">
+            开启后，朋友能在 <code>/u/你的handle</code> 看到你的审美肖像、词典与馆藏精选（只读，私人观察笔记不会公开）。
+          </p>
+          <button className="btn-primary" onClick={beginEdit}>
+            创建并公开我的主页
+          </button>
+        </div>
+      )}
+
+      {ready && !editing && (
+        <div className="share-card-body">
+          <div className="share-link-row">
+            <span className="share-link">{shareUrl}</span>
+            <button className="share-link-edit" onClick={beginEdit}>
+              编辑
+            </button>
+            <button className="share-link-edit" onClick={setPrivate}>
+              设为私密
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <div className="share-card-body">
+          <label className="share-field">
+            <span>显示名</span>
+            <input value={name} placeholder="如：宫辛" onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="share-field">
+            <span>主页地址 /u/</span>
+            <input
+              value={handle}
+              placeholder="如：gongxin"
+              onChange={(e) => setHandle(e.target.value.toLowerCase())}
+            />
+          </label>
+          {err && <div className="share-err">{err}</div>}
+          <div className="share-field-actions">
+            <button className="share-link-edit" onClick={() => setEditing(false)} disabled={busy}>
+              取消
+            </button>
+            <button className="btn-primary" onClick={onPublish} disabled={busy || !handle}>
+              {busy ? '保存中…' : '公开并保存'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {toast && <div className="share-toast">{toast}</div>}
+    </section>
+  );
+}
 
 type Stats = { streak: number; vocabulary: number; notes: number; patterns: number };
 
@@ -180,6 +305,8 @@ export function JournalPage({
               <div className="l">已成模式</div>
             </div>
           </div>
+
+          <ShareCard />
 
           <section className="journal-section">
             <h2>

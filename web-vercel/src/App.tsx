@@ -18,6 +18,7 @@ import { ArchivePage } from './pages/ArchivePage';
 import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
 import { WorkDetailPage } from './pages/WorkDetailPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { TweaksProvider, useTweaks } from './hooks/useTweaks';
 import {
   useTodayWork,
@@ -409,6 +410,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MuseumShell />} />
           <Route path="/work/:id" element={<WorkDetailPage />} />
+          <Route path="/u/:handle" element={<ProfilePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route
             path="/new"
