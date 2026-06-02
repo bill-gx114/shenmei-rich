@@ -166,34 +166,61 @@ export default async function handler(req: Request): Promise<Response> {
     ),
   );
 
-  const heroCol = hero
-    ? h(
-        'div',
-        { style: { display: 'flex', width: '460px', height: '630px', position: 'relative' } },
+  const collage = url.searchParams.get('layout') === 'collage';
+  const collageImgs = images.slice(0, 3);
+
+  // Shared overlays: a gold seam against the text column + a subtle darkening.
+  const seam = h('div', {
+    style: { position: 'absolute', left: '0px', top: '0px', bottom: '0px', width: '2px', backgroundColor: gold },
+  });
+  const shade = h('div', {
+    style: {
+      position: 'absolute',
+      left: '0px',
+      top: '0px',
+      right: '0px',
+      bottom: '0px',
+      backgroundImage:
+        'linear-gradient(90deg, rgba(11,9,7,0.55), rgba(11,9,7,0) 22%, rgba(11,9,7,0) 82%, rgba(11,9,7,0.3))',
+    },
+  });
+
+  let heroCol: ReactElement | null = null;
+  if (collage && collageImgs.length >= 2) {
+    const each = Math.floor(630 / collageImgs.length);
+    heroCol = h(
+      'div',
+      { style: { display: 'flex', flexDirection: 'column', width: '460px', height: '630px', position: 'relative' } },
+      ...collageImgs.map((src, i) =>
         h('img', {
-          src: hero,
+          src,
           width: 460,
-          height: 630,
-          style: { width: '460px', height: '630px', objectFit: 'cover' },
-        }),
-        // gold hairline seam against the text column
-        h('div', {
-          style: { position: 'absolute', left: '0px', top: '0px', bottom: '0px', width: '2px', backgroundColor: gold },
-        }),
-        // subtle darkening so the wall reads continuous
-        h('div', {
+          height: each,
           style: {
-            position: 'absolute',
-            left: '0px',
-            top: '0px',
-            right: '0px',
-            bottom: '0px',
-            backgroundImage:
-              'linear-gradient(90deg, rgba(11,9,7,0.55), rgba(11,9,7,0) 22%, rgba(11,9,7,0) 80%, rgba(11,9,7,0.35))',
+            width: '460px',
+            height: `${each}px`,
+            objectFit: 'cover',
+            borderTop: i ? `2px solid ${gold}` : 'none',
           },
         }),
-      )
-    : null;
+      ),
+      seam,
+      shade,
+    );
+  } else if (hero) {
+    heroCol = h(
+      'div',
+      { style: { display: 'flex', width: '460px', height: '630px', position: 'relative' } },
+      h('img', {
+        src: hero,
+        width: 460,
+        height: 630,
+        style: { width: '460px', height: '630px', objectFit: 'cover' },
+      }),
+      seam,
+      shade,
+    );
+  }
 
   const children: ReactElement[] = [leftCol];
   if (heroCol) children.push(heroCol);
