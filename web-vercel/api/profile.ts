@@ -72,7 +72,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const ownerId = profile.owner_id as string;
 
   const [entriesRes, conRes, insightRes, pinsRes] = await Promise.all([
-    admin.from('notebook_entries').select('works(exhibited_on)').eq('owner_id', ownerId),
+    admin
+      .from('notebook_entries')
+      .select('saved_at, works(no, title, image_path, exhibited_on)')
+      .eq('owner_id', ownerId)
+      .order('saved_at', { ascending: false }),
     admin
       .from('v_user_constellation')
       .select('keyword, count')
@@ -110,8 +114,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     | { portrait: string | null; tendencies: Array<{ title: string; desc: string }> | null }
     | null;
 
-  // Cover image for the OG card: first pinned work, else nothing.
-  const cover = collection[0]?.img ?? '';
+  // Images for the share poster: pinned works first, then recently observed
+  // works as fallback, deduped — so the card always has real art to show.
+  const recentImgs = entries
+    .map((e) => firstWork((e as { works: unknown }).works))
+    .filter((w): w is WorkJoin => Boolean(w))
+    .map((w) => publicImageUrl(supabaseUrl, w.image_path));
+  const images: string[] = [];
+  for (const src of [...collection.map((c) => c.img), ...recentImgs]) {
+    if (src && !images.includes(src)) images.push(src);
+    if (images.length >= 4) break;
+  }
+  const cover = images[0] ?? '';
 
   return sendJson(res, 200, {
     ok: true,
@@ -126,6 +140,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     tendencies: insight?.tendencies ?? [],
     dictionary,
     collection,
+    images,
     cover,
   });
 }

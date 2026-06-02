@@ -10,7 +10,7 @@
 // SC from Google Fonts covering exactly the glyphs we draw.
 
 import { ImageResponse } from '@vercel/og';
-import { createElement as h } from 'react';
+import { createElement as h, type ReactElement } from 'react';
 
 export const config = { runtime: 'edge' };
 
@@ -18,6 +18,7 @@ type ProfilePayload = {
   profile?: { displayName?: string; handle?: string };
   stats?: { streak?: number; vocabulary?: number; collection?: number };
   portrait?: string | null;
+  images?: string[];
 };
 
 // Load our self-hosted Noto Serif SC subset (GB2312 level-1 common Hanzi +
@@ -49,34 +50,49 @@ export default async function handler(req: Request): Promise<Response> {
   const name = data?.profile?.displayName ?? '一位观众';
   const s = data?.stats;
   const quoteRaw =
-    data?.portrait?.trim() || '每天一幅名作，在画前停留三分钟，慢慢长出自己的眼睛。';
-  const quote = quoteRaw.length > 56 ? quoteRaw.slice(0, 56) + '…' : quoteRaw;
-  const statLine = s
-    ? `连续 ${s.streak ?? 0} 天　·　${s.vocabulary ?? 0} 个词条　·　${s.collection ?? 0} 件馆藏`
-    : '';
+    data?.portrait?.trim() ||
+    '每天一幅名作，在画前停留三分钟——慢慢长出自己的眼睛，沉淀出别人替代不了的审美判断。';
+  const quote = quoteRaw.length > 62 ? quoteRaw.slice(0, 62) + '…' : quoteRaw;
+  const images = (data?.images ?? []).filter(Boolean).slice(0, 3);
+  const hero = images[0] ?? '';
 
   const font = await loadFont(url.origin);
 
   const gold = '#e7c067';
+  const goldSoft = 'rgba(231,192,103,0.30)';
   const ink = '#f6ecd4';
-  const ink2 = '#d9c8a0';
-  const ink3 = '#998c70';
+  const ink2 = '#cdbd97';
+  const ink3 = '#8f8268';
 
-  const tree = h(
+  const statCell = (n: number | undefined, label: string) =>
+    h(
+      'div',
+      { style: { display: 'flex', flexDirection: 'column' } },
+      h(
+        'div',
+        { style: { fontSize: '54px', color: gold, lineHeight: 1, fontFamily: 'Noto Serif SC' } },
+        String(n ?? 0),
+      ),
+      h(
+        'div',
+        { style: { fontSize: '17px', color: ink3, marginTop: '10px', letterSpacing: '3px' } },
+        label,
+      ),
+    );
+
+  const leftWidth = hero ? 740 : 1200;
+
+  const leftCol = h(
     'div',
     {
       style: {
-        width: '1200px',
-        height: '630px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '72px 80px',
-        backgroundColor: '#0b0907',
-        backgroundImage:
-          'radial-gradient(900px 500px at 80% -10%, rgba(231,192,103,0.16), transparent), radial-gradient(700px 500px at 0% 110%, rgba(231,192,103,0.08), transparent)',
+        width: `${leftWidth}px`,
+        height: '630px',
+        padding: '62px 60px',
         fontFamily: 'Noto Serif SC',
-        color: ink,
       },
     },
     // eyebrow
@@ -101,18 +117,27 @@ export default async function handler(req: Request): Promise<Response> {
       ),
       h(
         'div',
-        { style: { color: gold, fontSize: '22px', letterSpacing: '8px' } },
+        { style: { color: gold, fontSize: '20px', letterSpacing: '7px' } },
         '审美日课 · AESTHETIC DAILY',
       ),
     ),
-    // center: name + handle + quote
+    // identity + quote
     h(
       'div',
       { style: { display: 'flex', flexDirection: 'column' } },
-      h('div', { style: { fontSize: '76px', lineHeight: 1.1, color: ink } }, `${name} 的审美主页`),
       h(
         'div',
-        { style: { fontSize: '26px', color: ink3, marginTop: '14px', letterSpacing: '2px' } },
+        { style: { display: 'flex', alignItems: 'baseline' } },
+        h('div', { style: { fontSize: '60px', lineHeight: 1.1, color: ink } }, name),
+        h(
+          'div',
+          { style: { fontSize: '26px', color: ink3, marginLeft: '18px' } },
+          '的审美主页',
+        ),
+      ),
+      h(
+        'div',
+        { style: { fontSize: '22px', color: ink3, marginTop: '10px', letterSpacing: '2px' } },
         `@${handle}`,
       ),
       h(
@@ -120,24 +145,87 @@ export default async function handler(req: Request): Promise<Response> {
         {
           style: {
             display: 'flex',
-            fontSize: '32px',
-            lineHeight: 1.6,
+            fontSize: '27px',
+            lineHeight: 1.7,
             color: ink2,
-            marginTop: '36px',
-            paddingLeft: '24px',
+            marginTop: '30px',
+            paddingLeft: '22px',
             borderLeft: `3px solid ${gold}`,
-            maxWidth: '900px',
           },
         },
         quote,
       ),
     ),
-    // bottom: stats
+    // stats
     h(
       'div',
-      { style: { display: 'flex', color: gold, fontSize: '26px', letterSpacing: '2px' } },
-      statLine,
+      { style: { display: 'flex', gap: '56px' } },
+      statCell(s?.streak, '连续打卡'),
+      statCell(s?.vocabulary, '审美词典'),
+      statCell(s?.collection, '馆藏精选'),
     ),
+  );
+
+  const heroCol = hero
+    ? h(
+        'div',
+        { style: { display: 'flex', width: '460px', height: '630px', position: 'relative' } },
+        h('img', {
+          src: hero,
+          width: 460,
+          height: 630,
+          style: { width: '460px', height: '630px', objectFit: 'cover' },
+        }),
+        // gold hairline seam against the text column
+        h('div', {
+          style: { position: 'absolute', left: '0px', top: '0px', bottom: '0px', width: '2px', backgroundColor: gold },
+        }),
+        // subtle darkening so the wall reads continuous
+        h('div', {
+          style: {
+            position: 'absolute',
+            left: '0px',
+            top: '0px',
+            right: '0px',
+            bottom: '0px',
+            backgroundImage:
+              'linear-gradient(90deg, rgba(11,9,7,0.55), rgba(11,9,7,0) 22%, rgba(11,9,7,0) 80%, rgba(11,9,7,0.35))',
+          },
+        }),
+      )
+    : null;
+
+  const children: ReactElement[] = [leftCol];
+  if (heroCol) children.push(heroCol);
+  // gold mat frame on top of everything
+  children.push(
+    h('div', {
+      style: {
+        position: 'absolute',
+        top: '18px',
+        left: '18px',
+        right: '18px',
+        bottom: '18px',
+        border: `1px solid ${goldSoft}`,
+      },
+    }),
+  );
+
+  const tree = h(
+    'div',
+    {
+      style: {
+        width: '1200px',
+        height: '630px',
+        display: 'flex',
+        position: 'relative',
+        backgroundColor: '#0b0907',
+        backgroundImage:
+          'radial-gradient(900px 520px at 78% -12%, rgba(231,192,103,0.16), transparent), radial-gradient(680px 480px at -5% 115%, rgba(231,192,103,0.08), transparent)',
+        color: ink,
+      },
+    },
+    ...children,
   );
 
   return new ImageResponse(tree, {
