@@ -20,8 +20,9 @@ type ProfilePayload = {
   portrait?: string | null;
 };
 
-// Fetch a TTF subset for `text`. An old UA makes Google serve TTF (Satori
-// can't parse woff2). Returns null on any failure so the caller can degrade.
+// Fetch a font subset covering exactly `text` from Google Fonts. A modern UA
+// gets a tiny woff2 subset (the only thing Google serves now); @vercel/og's
+// Satori decodes woff2. Returns null on failure so the caller can degrade.
 async function loadFontSubset(text: string): Promise<ArrayBuffer | null> {
   try {
     const api = `https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500&text=${encodeURIComponent(
@@ -29,12 +30,16 @@ async function loadFontSubset(text: string): Promise<ArrayBuffer | null> {
     )}`;
     const css = await (
       await fetch(api, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MSIE 6.0; Windows NT 5.1)' },
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        },
       })
     ).text();
-    const url = css.match(/src:\s*url\(([^)]+)\)\s*format/)?.[1];
+    const url = css.match(/url\((https:\/\/[^)]+)\)/)?.[1];
     if (!url) return null;
-    return await (await fetch(url)).arrayBuffer();
+    const buf = await (await fetch(url)).arrayBuffer();
+    return buf.byteLength > 0 ? buf : null;
   } catch {
     return null;
   }
