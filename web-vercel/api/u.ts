@@ -54,7 +54,9 @@ export default async function handler(req: Request): Promise<Response> {
     (s
       ? `连续观看 ${s.streak ?? 0} 天 · ${s.vocabulary ?? 0} 个审美词条 · ${s.collection ?? 0} 件馆藏 —— 在审美日课，每天一幅名作，长出自己的眼睛。`
       : '在审美日课，每天一幅名作，长出自己的眼睛。');
-  const image = data?.cover || `${origin}/og-default.png`;
+  // Only emit an image if the profile actually has a cover artwork — a broken
+  // image URL renders worse than a clean text-only card.
+  const image = data?.cover || '';
   const pageUrl = `${origin}/u/${encodeURIComponent(handle)}`;
 
   const meta = [
