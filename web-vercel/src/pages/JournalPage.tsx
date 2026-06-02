@@ -87,6 +87,12 @@ function ShareCard() {
         <div className="share-card-body">
           <div className="share-link-row">
             <span className="share-link">{shareUrl}</span>
+            <button
+              className="share-link-edit"
+              onClick={() => window.open(`/api/og?h=${profile.handle}`, '_blank')}
+            >
+              海报
+            </button>
             <button className="share-link-edit" onClick={beginEdit}>
               编辑
             </button>

@@ -54,9 +54,10 @@ export default async function handler(req: Request): Promise<Response> {
     (s
       ? `连续观看 ${s.streak ?? 0} 天 · ${s.vocabulary ?? 0} 个审美词条 · ${s.collection ?? 0} 件馆藏 —— 在审美日课，每天一幅名作，长出自己的眼睛。`
       : '在审美日课，每天一幅名作，长出自己的眼睛。');
-  // Only emit an image if the profile actually has a cover artwork — a broken
-  // image URL renders worse than a clean text-only card.
-  const image = data?.cover || '';
+  // Prefer the generated poster (on-brand, always present for a real profile).
+  // It internally falls back to a generic card, so it's safe to always point
+  // at it when we resolved a profile; otherwise no image.
+  const image = data ? `${origin}/api/og?h=${encodeURIComponent(handle)}` : '';
   const pageUrl = `${origin}/u/${encodeURIComponent(handle)}`;
 
   const meta = [
