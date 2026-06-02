@@ -232,5 +232,11 @@ export default async function handler(req: Request): Promise<Response> {
     width: 1200,
     height: 630,
     fonts: font ? [{ name: 'Noto Serif SC', data: font, weight: 500, style: 'normal' }] : [],
+    // The poster reflects live stats, so don't cache it for a year (the
+    // @vercel/og default). Short edge cache + SWR keeps it fresh as the user
+    // answers more works.
+    headers: {
+      'cache-control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400',
+    },
   });
 }
