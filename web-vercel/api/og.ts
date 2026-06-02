@@ -20,25 +20,14 @@ type ProfilePayload = {
   portrait?: string | null;
 };
 
-// Fetch a font subset covering exactly `text` from Google Fonts. A modern UA
-// gets a tiny woff2 subset (the only thing Google serves now); @vercel/og's
-// Satori decodes woff2. Returns null on failure so the caller can degrade.
-async function loadFontSubset(text: string): Promise<ArrayBuffer | null> {
+// Load our self-hosted Noto Serif SC subset (GB2312 level-1 common Hanzi +
+// Latin + punctuation, instanced to wght 500, ~1.5MB TTF). Google Fonts only
+// serves woff2 now, which Satori can't decode — so we ship our own TTF.
+// Rendered PNGs are cached immutable, so the font fetch only happens on cold
+// renders. Returns null on failure so the caller can degrade gracefully.
+async function loadFont(origin: string): Promise<ArrayBuffer | null> {
   try {
-    const api = `https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500&text=${encodeURIComponent(
-      text,
-    )}`;
-    const css = await (
-      await fetch(api, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-        },
-      })
-    ).text();
-    const url = css.match(/url\((https:\/\/[^)]+)\)/)?.[1];
-    if (!url) return null;
-    const buf = await (await fetch(url)).arrayBuffer();
+    const buf = await (await fetch(`${origin}/fonts/notoserifsc-500-sub.ttf`)).arrayBuffer();
     return buf.byteLength > 0 ? buf : null;
   } catch {
     return null;
@@ -66,14 +55,7 @@ export default async function handler(req: Request): Promise<Response> {
     ? `连续 ${s.streak ?? 0} 天　·　${s.vocabulary ?? 0} 个词条　·　${s.collection ?? 0} 件馆藏`
     : '';
 
-  const allText =
-    name +
-    quote +
-    statLine +
-    '审美日课AESTHETIC DAILY · 审美主页的@' +
-    handle +
-    'abcdefghijklmnopqrstuvwxyz0123456789—…審';
-  const font = await loadFontSubset(allText);
+  const font = await loadFont(url.origin);
 
   const gold = '#e7c067';
   const ink = '#f6ecd4';
@@ -115,7 +97,7 @@ export default async function handler(req: Request): Promise<Response> {
             fontSize: '24px',
           },
         },
-        '審',
+        '审',
       ),
       h(
         'div',
