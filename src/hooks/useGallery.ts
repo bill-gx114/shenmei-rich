@@ -345,13 +345,18 @@ export function useArchive(): LoadState<ArchiveWork[]> & { refresh: () => void }
 
 // ── 全球漫游 (Global Roaming) ───────────────────────────────────────────────
 
+// The globe shows BOTH curated roam landmarks (base layer) AND daily works that
+// have coordinates (your journey layer) — Model C. roam works always have
+// lat/lng; daily works only after the coords backfill, so `.not('lat','is',null)`
+// naturally includes all roam + only the located daily works.
 async function fetchRoamPlaces(): Promise<RoamPlace[]> {
   const { data, error } = await supabase
     .from('works')
     .select(
-      'id, no, title, artist, artist_romaji, year, category, location, lat, lng, image_path, short_label, curator_note, hotspots(label, detail, order_index)',
+      'id, no, title, artist, artist_romaji, year, category, location, room, lat, lng, image_path, short_label, curator_note, kind, exhibited_on, hotspots(label, detail, order_index)',
     )
-    .eq('kind', 'roam')
+    .in('kind', ['roam', 'daily'])
+    .not('lat', 'is', null)
     .order('no', { ascending: true });
   if (error) throw error;
   type Row = {
@@ -363,11 +368,14 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
     year: string | null;
     category: string | null;
     location: string | null;
+    room: string | null;
     lat: number | string | null;
     lng: number | string | null;
     image_path: string | null;
     short_label: string | null;
     curator_note: string | null;
+    kind: 'roam' | 'daily' | null;
+    exhibited_on: string | null;
     hotspots: Array<{ label: string; detail: string; order_index: number }> | null;
   };
   return ((data ?? []) as Row[])
@@ -379,7 +387,9 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
       artist: w.artist,
       year: w.year ?? '',
       category: w.category ?? '',
-      place: w.location ?? '',
+      // roam stores "国家 · 馆" in location; daily stores its museum in location
+      // and a "今日展厅" room — prefer location, fall back to room.
+      place: w.location || w.room || '',
       lat: Number(w.lat),
       lng: Number(w.lng),
       image: publicImageUrl(w.image_path),
@@ -389,6 +399,8 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
         .slice()
         .sort((a, b) => a.order_index - b.order_index)
         .map((h) => ({ label: h.label, detail: h.detail })),
+      kind: (w.kind ?? 'daily') as 'roam' | 'daily',
+      exhibitedOn: w.exhibited_on ?? undefined,
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }

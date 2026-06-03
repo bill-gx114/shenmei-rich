@@ -20,6 +20,41 @@ const CATEGORY_COLOR: Record<string, string> = {
 };
 const catColor = (c: string) => CATEGORY_COLOR[c] ?? '#e7c067';
 
+const TODAY_GOLD = '#ffd166';
+const DAILY_HUE = '#b9a87f';
+const COLLECTED = '#fff1cf';
+
+function beijingTodayISO(): string {
+  const b = new Date(Date.now() + 8 * 3600 * 1000);
+  return b.toISOString().slice(0, 10);
+}
+
+// Several works share a museum (the Beijing 故宫 scrolls, the Louvre, …) and so
+// share coordinates. Fan any co-located points out in a small circle so they're
+// individually visible and clickable. Returns copies (originals untouched).
+function spread(places: RoamPlace[]): RoamPlace[] {
+  const groups = new Map<string, RoamPlace[]>();
+  for (const p of places) {
+    const k = `${p.lat.toFixed(3)},${p.lng.toFixed(3)}`;
+    const g = groups.get(k);
+    if (g) g.push(p);
+    else groups.set(k, [p]);
+  }
+  const out: RoamPlace[] = [];
+  for (const grp of groups.values()) {
+    if (grp.length === 1) {
+      out.push({ ...grp[0] });
+      continue;
+    }
+    const R = 1.1;
+    grp.forEach((p, i) => {
+      const ang = (2 * Math.PI * i) / grp.length;
+      out.push({ ...p, lat: p.lat + R * Math.sin(ang), lng: p.lng + R * Math.cos(ang) });
+    });
+  }
+  return out;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Pt = any;
 
@@ -35,8 +70,40 @@ export default function RoamPage() {
   const globeRef = useRef<GlobeInstance | null>(null);
   const selectedRef = useRef<RoamPlace | null>(null);
   const collectedRef = useRef<Set<string>>(new Set());
+  const placesRef = useRef<RoamPlace[]>([]);
   selectedRef.current = selected;
   collectedRef.current = collected;
+
+  const todayISO = beijingTodayISO();
+  const isToday = useCallback(
+    (d: Pt) => d.kind === 'daily' && d.exhibitedOn === todayISO,
+    [todayISO],
+  );
+  const colorFor = useCallback(
+    (d: Pt) => {
+      if (collectedRef.current.has(d.id)) return COLLECTED;
+      if (isToday(d)) return TODAY_GOLD;
+      if (d.kind === 'daily') return DAILY_HUE;
+      return catColor(d.category);
+    },
+    [isToday],
+  );
+  const radiusFor = useCallback(
+    (d: Pt) => {
+      if (d.id === selectedRef.current?.id) return 1.3;
+      if (isToday(d)) return 1.2;
+      return d.kind === 'daily' ? 0.72 : 0.95;
+    },
+    [isToday],
+  );
+  const altFor = useCallback(
+    (d: Pt) => {
+      if (d.id === selectedRef.current?.id) return 0.16;
+      if (isToday(d)) return 0.14;
+      return d.kind === 'daily' ? 0.07 : 0.09;
+    },
+    [isToday],
+  );
 
   // Load which landmarks this user has already collected.
   useEffect(() => {
@@ -49,18 +116,25 @@ export default function RoamPage() {
   const refreshMarkers = useCallback(() => {
     const w = globeRef.current;
     if (!w) return;
-    const selId = selectedRef.current?.id;
-    w.pointAltitude((d: Pt) => (d.id === selId ? 0.16 : 0.09))
-      .pointRadius((d: Pt) => (d.id === selId ? 1.3 : 0.95))
-      .pointColor((d: Pt) => (collectedRef.current.has(d.id) ? '#fff1cf' : catColor(d.category)));
-    w.ringsData(selectedRef.current ? [selectedRef.current as unknown as object] : [])
+    w.pointAltitude(altFor).pointRadius(radiusFor).pointColor(colorFor);
+    // Pulsing rings: today's daily work always, plus the selected point.
+    const rings: RoamPlace[] = [];
+    const todayPlace = placesRef.current.find((p) => isToday(p));
+    if (todayPlace) rings.push(todayPlace);
+    if (selectedRef.current && selectedRef.current.id !== todayPlace?.id) {
+      rings.push(selectedRef.current);
+    }
+    w.ringsData(rings as unknown as object[])
       .ringLat((d: Pt) => d.lat)
       .ringLng((d: Pt) => d.lng)
-      .ringColor(() => (t: number) => `rgba(231,192,103,${1 - t})`)
+      .ringColor((d: Pt) => {
+        const gold = isToday(d) ? '255,209,102' : '231,192,103';
+        return (t: number) => `rgba(${gold},${1 - t})`;
+      })
       .ringMaxRadius(4.5)
       .ringPropagationSpeed(1.8)
       .ringRepeatPeriod(820);
-  }, []);
+  }, [altFor, radiusFor, colorFor, isToday]);
 
   const selectPlace = useCallback(
     (p: RoamPlace) => {
@@ -89,6 +163,8 @@ export default function RoamPage() {
   // Build the globe once places + container are ready.
   useEffect(() => {
     if (!containerRef.current || !places || !places.length || globeRef.current) return;
+    const positioned = spread(places);
+    placesRef.current = positioned;
     let world: GlobeInstance;
     try {
       world = new Globe(containerRef.current)
@@ -97,18 +173,16 @@ export default function RoamPage() {
         .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
         .atmosphereColor('#e7c067')
         .atmosphereAltitude(0.16)
-        .pointsData(places as unknown as object[])
+        .pointsData(positioned as unknown as object[])
         .pointLat((d: Pt) => d.lat)
         .pointLng((d: Pt) => d.lng)
-        .pointAltitude((d: Pt) => (d.id === selectedRef.current?.id ? 0.16 : 0.09))
-        .pointRadius((d: Pt) => (d.id === selectedRef.current?.id ? 1.3 : 0.95))
-        .pointColor((d: Pt) =>
-          collectedRef.current.has(d.id) ? '#fff1cf' : catColor(d.category),
-        )
-        .pointLabel(
-          (d: Pt) =>
-            `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.5);color:#f6ecd4;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap"><b style="color:#e7c067">${d.title}</b> · ${d.category}<br/><span style="color:#8f8268">${d.place}</span></div>`,
-        )
+        .pointAltitude(altFor)
+        .pointRadius(radiusFor)
+        .pointColor(colorFor)
+        .pointLabel((d: Pt) => {
+          const tag = d.kind === 'daily' ? (isToday(d) ? '今日展厅' : '日课') : d.category;
+          return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.5);color:#f6ecd4;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap"><b style="color:#e7c067">${d.title}</b> · ${tag}<br/><span style="color:#8f8268">${d.place}</span></div>`;
+        })
         .onPointClick((d: object) => selectPlace(d as RoamPlace));
     } catch {
       setGlError(true);
@@ -140,7 +214,7 @@ export default function RoamPage() {
       }
       globeRef.current = null;
     };
-  }, [places, selectPlace]);
+  }, [places, selectPlace, altFor, radiusFor, colorFor, isToday]);
 
   // Keep markers in sync when collection changes.
   useEffect(() => {
@@ -173,7 +247,7 @@ export default function RoamPage() {
         <div className="roam-eyebrow">GLOBAL ROAMING · 全球漫游</div>
         <h1 className="roam-title">在地球上漫游名作</h1>
         <p className="roam-sub">
-          旋转地球，点亮任意一处光点——看那里诞生的画、建筑与雕塑，读懂它为何成立。喜欢的，可收入你的馆藏。
+          旋转地球：金蓝绿点是精选世界名作，浅金点是你日课走过的地方，今日那件在发光。点亮任意一处，读懂它为何成立——喜欢的，收入你的馆藏。
         </p>
         <div className="roam-legend">
           {Object.entries(CATEGORY_COLOR).map(([k, v]) => (
@@ -183,7 +257,15 @@ export default function RoamPage() {
             </span>
           ))}
           <span className="roam-legend-item">
-            <i style={{ background: '#fff1cf' }} />
+            <i style={{ background: DAILY_HUE }} />
+            日课足迹
+          </span>
+          <span className="roam-legend-item">
+            <i style={{ background: TODAY_GOLD, boxShadow: `0 0 10px ${TODAY_GOLD}` }} />
+            今日
+          </span>
+          <span className="roam-legend-item">
+            <i style={{ background: COLLECTED }} />
             已收藏
           </span>
         </div>
@@ -213,8 +295,18 @@ export default function RoamPage() {
               <div className="roam-panel-img" style={{ backgroundImage: `url(${selected.image})` }} />
             )}
             <div className="roam-panel-body">
-              <span className="roam-chip" style={{ borderColor: catColor(selected.category) }}>
-                {selected.category}
+              <span
+                className="roam-chip"
+                style={{
+                  borderColor:
+                    selected.kind === 'daily' ? TODAY_GOLD : catColor(selected.category),
+                }}
+              >
+                {selected.kind === 'daily'
+                  ? isToday(selected)
+                    ? '今日展厅'
+                    : '日课足迹'
+                  : selected.category}
               </span>
               <h2 className="roam-name">{selected.title}</h2>
               {selected.titleEn && <div className="roam-name-en">{selected.titleEn}</div>}

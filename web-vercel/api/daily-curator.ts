@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
+import { coordsForSeed } from '../lib/seedCoords.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -286,6 +287,31 @@ export default async (req: Request) => {
     return backfillIncompleteWorks(supabase);
   }
 
+  // `?coords=1` — backfill lat/lng on published daily works so they can be
+  // pinned onto the 全球漫游 globe (Model C). Matches each work to its seed
+  // coordinate by title; no AI calls.
+  if (url.searchParams.get('coords') === '1') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, lat')
+      .eq('kind', 'daily')
+      .is('owner_id', null);
+    if (error) return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
+    const fixed: string[] = [];
+    const unmatched: string[] = [];
+    for (const w of rows ?? []) {
+      if (w.lat != null) continue; // already has coordinates
+      const c = coordsForSeed(null, w.title as string);
+      if (!c) {
+        unmatched.push(w.title as string);
+        continue;
+      }
+      await supabase.from('works').update({ lat: c.lat, lng: c.lng }).eq('id', w.id);
+      fixed.push(w.title as string);
+    }
+    return jsonResponse(200, { ok: true, mode: 'coords', fixed, unmatched });
+  }
+
   const today = beijingTodayISO();
 
   // 1. Idempotency: already published today?
@@ -359,12 +385,15 @@ export default async (req: Request) => {
   }
 
   // 5. Insert work + core child rows via service role (RLS bypassed).
+  const coords = coordsForSeed(seed.wikipediaSlug, seed.title);
   const { data: work, error: workErr } = await supabase
     .from('works')
     .insert({
       owner_id: null,
       no,
       exhibited_on: today,
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
       title: seed.title,
       artist: seed.artist,
       artist_romaji: seed.artistRomaji,

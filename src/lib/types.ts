@@ -58,7 +58,8 @@ export type ArchiveWork = {
   region?: 'east' | 'west' | null;
 };
 
-/** A 全球漫游 landmark — a roam-kind work plotted on the globe. */
+/** A point on the 全球漫游 globe — either a curated roam landmark or a daily
+ *  work pinned at its museum (Model C: world map + your daily journey). */
 export type RoamPlace = {
   id: string;
   no: string;
@@ -76,6 +77,10 @@ export type RoamPlace = {
   curatorNote: string;
   /** Observation points (reused from hotspots) shown as "怎么看" bullets. */
   points: { label: string; detail: string }[];
+  /** 'roam' = curated landmark (base layer); 'daily' = a daily work you've seen. */
+  kind: 'roam' | 'daily';
+  /** For daily works — the date it was on display (used to flag "today"). */
+  exhibitedOn?: string;
 };
 
 export type Pattern = {
