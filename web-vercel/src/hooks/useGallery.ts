@@ -4,6 +4,7 @@ import type {
   ArchiveWork,
   ConstellationWord,
   Pattern,
+  RoamPlace,
   Work,
   WordSource,
 } from '../lib/types';
@@ -98,6 +99,7 @@ async function queryTodayWork(): Promise<Work | null> {
     .from('works')
     .select('*')
     .eq('exhibited_on', todayISO())
+    .eq('kind', 'daily')
     .order('owner_id', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(1);
@@ -198,23 +200,55 @@ export function useTodayWork(): LoadState<Work> & { refresh: () => void } {
   return { ...state, refresh: load };
 }
 
+type ArchiveRow = {
+  id: string;
+  no: string;
+  exhibited_on: string;
+  title: string;
+  artist: string;
+  image_path: string | null;
+  short_label: string | null;
+  region: 'east' | 'west' | null;
+  kind?: string | null;
+  category?: string | null;
+  location?: string | null;
+};
+
 async function fetchArchive(): Promise<ArchiveWork[]> {
   const [worksRes, pinsRes] = await Promise.all([
+    // The archive timeline is the daily exhibition only — roam landmarks are
+    // not part of the 365-day calendar, so they don't flood it here.
     supabase
       .from('works')
       .select('id, no, exhibited_on, title, artist, image_path, short_label, region')
+      .eq('kind', 'daily')
       .order('exhibited_on', { ascending: false }),
     supabase.from('user_pins').select('work_id'),
   ]);
   if (worksRes.error) throw worksRes.error;
   const pinnedSet = new Set((pinsRes.data ?? []).map((r) => r.work_id as string));
-  return (worksRes.data ?? []).map((w, i) => {
+
+  // …but a roam landmark you've COLLECTED should appear in 馆藏. Fetch just the
+  // pinned roam works and fold them in (marked pinned, tagged by category).
+  let pinnedRoam: ArchiveRow[] = [];
+  if (pinnedSet.size) {
+    const { data } = await supabase
+      .from('works')
+      .select('id, no, exhibited_on, title, artist, image_path, short_label, region, category, location')
+      .eq('kind', 'roam')
+      .in('id', [...pinnedSet]);
+    pinnedRoam = (data ?? []) as ArchiveRow[];
+  }
+
+  const all: ArchiveRow[] = [...((worksRes.data ?? []) as ArchiveRow[]), ...pinnedRoam];
+  return all.map((w, i) => {
+    const isRoam = pinnedRoam.some((r) => r.id === w.id);
     const d = new Date(w.exhibited_on);
     return {
       id: w.id,
       no: w.no,
       exhibitedOn: w.exhibited_on,
-      date: `${d.getMonth() + 1}月${d.getDate()}日`,
+      date: isRoam ? `漫游 · ${w.location ?? ''}` : `${d.getMonth() + 1}月${d.getDate()}日`,
       title: w.title,
       artist: w.artist,
       img: publicImageUrl(w.image_path),
@@ -307,6 +341,85 @@ export function useArchive(): LoadState<ArchiveWork[]> & { refresh: () => void }
   }, [load]);
 
   return { ...state, refresh: load };
+}
+
+// ── 全球漫游 (Global Roaming) ───────────────────────────────────────────────
+
+async function fetchRoamPlaces(): Promise<RoamPlace[]> {
+  const { data, error } = await supabase
+    .from('works')
+    .select(
+      'id, no, title, artist, artist_romaji, year, category, location, lat, lng, image_path, short_label, curator_note, hotspots(label, detail, order_index)',
+    )
+    .eq('kind', 'roam')
+    .order('no', { ascending: true });
+  if (error) throw error;
+  type Row = {
+    id: string;
+    no: string;
+    title: string;
+    artist: string;
+    artist_romaji: string | null;
+    year: string | null;
+    category: string | null;
+    location: string | null;
+    lat: number | string | null;
+    lng: number | string | null;
+    image_path: string | null;
+    short_label: string | null;
+    curator_note: string | null;
+    hotspots: Array<{ label: string; detail: string; order_index: number }> | null;
+  };
+  return ((data ?? []) as Row[])
+    .map((w) => ({
+      id: w.id,
+      no: w.no,
+      title: w.title,
+      titleEn: w.artist_romaji ?? '',
+      artist: w.artist,
+      year: w.year ?? '',
+      category: w.category ?? '',
+      place: w.location ?? '',
+      lat: Number(w.lat),
+      lng: Number(w.lng),
+      image: publicImageUrl(w.image_path),
+      shortLabel: w.short_label ?? '',
+      curatorNote: w.curator_note ?? '',
+      points: (w.hotspots ?? [])
+        .slice()
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((h) => ({ label: h.label, detail: h.detail })),
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+}
+
+export function useRoamPlaces(): LoadState<RoamPlace[]> & { refresh: () => void } {
+  const [state, setState] = useState<LoadState<RoamPlace[]>>({
+    data: null,
+    loading: isSupabaseConfigured,
+    error: null,
+  });
+  const load = useCallback(() => {
+    if (!isSupabaseConfigured) {
+      setState({ data: [], loading: false, error: null });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true, error: null }));
+    fetchRoamPlaces()
+      .then((data) => setState({ data, loading: false, error: null }))
+      .catch((err: Error) => setState({ data: null, loading: false, error: err.message }));
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  return { ...state, refresh: load };
+}
+
+/** The set of work ids this user has collected (pinned) — for bulk UIs. */
+export async function fetchPinnedWorkIds(): Promise<Set<string>> {
+  if (!isSupabaseConfigured) return new Set();
+  const { data } = await supabase.from('user_pins').select('work_id');
+  return new Set((data ?? []).map((r) => r.work_id as string));
 }
 
 type JournalData = {

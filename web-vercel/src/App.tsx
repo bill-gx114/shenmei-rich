@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import { Signage } from './components/Signage';
 import { Viewer } from './components/Viewer';
@@ -19,6 +19,8 @@ import { JournalPage } from './pages/JournalPage';
 import { AdminNewWorkPage } from './pages/AdminNewWorkPage';
 import { WorkDetailPage } from './pages/WorkDetailPage';
 import { ProfilePage } from './pages/ProfilePage';
+// Lazy — pulls in globe.gl + three.js, kept out of the main bundle.
+const RoamPage = lazy(() => import('./pages/RoamPage'));
 import { TweaksProvider, useTweaks } from './hooks/useTweaks';
 import {
   useTodayWork,
@@ -204,6 +206,19 @@ function MuseumShell() {
       ) : (
         <EmptyToday loading={today.loading} error={today.error} onAddWork={() => nav('/new')} />
       ))}
+      {tab === 'roam' && (
+        <Suspense
+          fallback={
+            <div className="roam-root">
+              <div className="roam-stage">
+                <div className="roam-overlay">正在点亮地球…</div>
+              </div>
+            </div>
+          }
+        >
+          <RoamPage />
+        </Suspense>
+      )}
       {tab === 'archive' && (
         <ArchivePage
           works={archiveWorks}

@@ -17,6 +17,9 @@ export type CuratorPackInput = {
   title: string;
   artist: string;
   hint?: string;
+  /** Optional factual grounding (e.g. a Wikipedia summary). Reduces the model's
+   *  tendency to invent attributions — used by the roaming-landmark seeder. */
+  context?: string;
 };
 
 export type Hotspot = { x: number; y: number; label: string; detail: string };
@@ -100,8 +103,13 @@ function buildUserPrompt(input: CuratorPackInput) {
     `作品名：${input.title || '（未填）'}`,
     `作者：${input.artist || '（未填）'}`,
     input.hint ? `一句话感觉：${input.hint}` : '没有额外感觉，请基于作品本身判断',
-    '请输出符合上述结构的 JSON。',
   ];
+  if (input.context) {
+    lines.push(
+      `背景资料（仅供参考事实，请勿照抄，更不要编造资料里没有的人名/年代/归属）：\n${input.context}`,
+    );
+  }
+  lines.push('请输出符合上述结构的 JSON。');
   return lines.join('\n');
 }
 

@@ -13,6 +13,7 @@ type Props = {
 
 const TABS = [
   { id: 'today', label: '今日展厅' },
+  { id: 'roam', label: '全球漫游' },
   { id: 'archive', label: '馆藏' },
   { id: 'journal', label: '观察手账' },
 ];

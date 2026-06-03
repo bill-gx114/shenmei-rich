@@ -58,6 +58,26 @@ export type ArchiveWork = {
   region?: 'east' | 'west' | null;
 };
 
+/** A 全球漫游 landmark — a roam-kind work plotted on the globe. */
+export type RoamPlace = {
+  id: string;
+  no: string;
+  title: string;
+  titleEn: string;
+  artist: string;
+  year: string;
+  category: string;
+  /** "国家 · 城市/馆" label. */
+  place: string;
+  lat: number;
+  lng: number;
+  image: string;
+  shortLabel: string;
+  curatorNote: string;
+  /** Observation points (reused from hotspots) shown as "怎么看" bullets. */
+  points: { label: string; detail: string }[];
+};
+
 export type Pattern = {
   title: string;
   freq: string;

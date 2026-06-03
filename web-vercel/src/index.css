@@ -1943,3 +1943,85 @@ button { font-family: inherit; cursor: pointer; }
   .share-field > span { width: auto; text-align: left; }
   .share-err { margin-left: 0; }
 }
+
+/* ── 全球漫游 (Global Roaming) ─────────────────────────────────────────── */
+.roam-root { padding: 28px clamp(16px, 4vw, 56px) 48px; }
+.roam-head { max-width: 720px; margin: 0 auto 18px; text-align: center; }
+.roam-eyebrow {
+  font-family: var(--display); font-style: italic; color: var(--gold);
+  letter-spacing: 0.32em; text-transform: uppercase; font-size: 12px; margin-bottom: 10px;
+}
+.roam-title {
+  font-family: var(--serif); font-weight: 300; font-size: clamp(26px, 4vw, 38px);
+  margin: 0 0 10px; letter-spacing: 0.04em;
+}
+.roam-sub { color: var(--ink-3); font-family: var(--serif); font-size: 14.5px; line-height: 1.8; margin: 0 auto; max-width: 560px; }
+.roam-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; }
+.roam-legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-3); font-size: 12px; letter-spacing: 0.06em; }
+.roam-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; }
+
+.roam-stage {
+  position: relative; margin: 18px auto 0; max-width: 1180px;
+  height: min(70vh, 680px); min-height: 420px;
+  border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden;
+  background: radial-gradient(120% 120% at 50% -10%, #100b16, #07060a 70%);
+}
+.roam-globe { width: 100%; height: 100%; cursor: grab; }
+.roam-globe:active { cursor: grabbing; }
+
+.roam-overlay {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+  padding: 24px; color: var(--ink-3); font-family: var(--serif); font-size: 15px;
+  pointer-events: none; background: rgba(7,6,10,0.35);
+}
+
+.roam-panel {
+  position: absolute; top: 16px; right: 16px; width: 360px; max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px); overflow-y: auto;
+  background: rgba(13,10,7,0.94); backdrop-filter: blur(8px);
+  border: 1px solid var(--line-bright); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5); animation: roam-in 0.32s ease;
+}
+@keyframes roam-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.roam-close {
+  position: absolute; top: 8px; right: 10px; z-index: 2; width: 28px; height: 28px;
+  border: none; background: rgba(0,0,0,0.4); color: var(--ink-2); font-size: 20px; line-height: 1;
+  border-radius: 50%; cursor: pointer;
+}
+.roam-close:hover { color: var(--gold); }
+.roam-panel-img { width: 100%; height: 188px; background-size: cover; background-position: center; border-bottom: 1px solid var(--line-strong); }
+.roam-panel-body { padding: 16px 18px 18px; }
+.roam-chip {
+  display: inline-block; font-size: 11px; letter-spacing: 0.14em; color: var(--ink-2);
+  border: 1px solid var(--gold); border-radius: 999px; padding: 2px 10px; margin-bottom: 10px;
+}
+.roam-name { font-family: var(--serif); font-weight: 400; font-size: 23px; margin: 0 0 2px; letter-spacing: 0.03em; }
+.roam-name-en { font-family: var(--display); font-style: italic; color: var(--ink-4); font-size: 13px; margin-bottom: 8px; }
+.roam-meta { color: var(--ink-3); font-size: 12.5px; letter-spacing: 0.04em; margin-bottom: 12px; }
+.roam-label { font-family: var(--serif); color: var(--ink); font-size: 14.5px; line-height: 1.75; margin: 0 0 10px; }
+.roam-note {
+  font-family: var(--serif); color: var(--ink-2); font-size: 13.5px; line-height: 1.85; margin: 0 0 14px;
+  padding-left: 12px; border-left: 2px solid var(--gold-soft);
+}
+.roam-points { border-top: 1px solid var(--line); padding-top: 12px; margin-bottom: 16px; }
+.roam-points-h { font-family: var(--display); font-style: italic; color: var(--gold); letter-spacing: 0.2em; text-transform: uppercase; font-size: 11px; margin-bottom: 8px; }
+.roam-point { margin-bottom: 9px; }
+.roam-point b { display: block; color: var(--ink); font-weight: 500; font-size: 13px; margin-bottom: 2px; }
+.roam-point span { color: var(--ink-3); font-size: 12.5px; line-height: 1.6; }
+.roam-actions { display: flex; flex-direction: column; gap: 8px; }
+.roam-btn {
+  font-family: var(--serif); font-size: 13px; letter-spacing: 0.08em; padding: 10px 14px;
+  border-radius: 8px; cursor: pointer; border: 1px solid var(--gold); background: var(--gold-tint); color: var(--ink);
+}
+.roam-btn-on { background: var(--gold); color: #1a1206; border-color: var(--gold); }
+.roam-btn-ghost { background: transparent; border-color: var(--line-strong); color: var(--ink-2); }
+.roam-btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+@media (max-width: 640px) {
+  .roam-stage { height: 64vh; min-height: 360px; }
+  .roam-panel {
+    top: auto; bottom: 0; right: 0; left: 0; width: 100%; max-width: 100%;
+    max-height: 72%; border-radius: 14px 14px 0 0; border-bottom: none;
+  }
+  .roam-panel-img { height: 150px; }
+}
