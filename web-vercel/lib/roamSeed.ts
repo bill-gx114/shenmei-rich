@@ -24,6 +24,9 @@ export type RoamSeed = {
   lng: number;
   wiki: { lang: 'en' | 'zh'; title: string };
   hint: string;
+  /** Curated fallback image (Wikimedia Commons direct link) for the rare title
+   *  whose Wikipedia summary AND PageImages both return nothing (e.g. R027). */
+  image?: string;
 };
 
 export const ROAM_SEEDS: RoamSeed[] = [
@@ -58,7 +61,7 @@ export const ROAM_SEEDS: RoamSeed[] = [
   // ── 美洲 ───────────────────────────────────────────────────────────────
   { no: 'R025', title: '自由女神像', titleEn: 'Statue of Liberty', artist: '巴托尔迪', year: '1886', category: '雕塑', country: '美国', place: '纽约', lat: 40.6892, lng: -74.0445, wiki: { lang: 'en', title: 'Statue_of_Liberty' }, hint: '看高举的火炬与脚下断裂的锁链，如何把一个抽象概念铸成可见的姿态' },
   { no: 'R026', title: '流水别墅', titleEn: 'Fallingwater', artist: '弗兰克·劳埃德·赖特', year: '1935', category: '建筑', country: '美国', place: '宾夕法尼亚', lat: 39.9064, lng: -79.4686, wiki: { lang: 'en', title: 'Fallingwater' }, hint: '看悬挑的水平板如何让房子像从崖壁里长出来，与瀑布共用一套节奏' },
-  { no: 'R027', title: '马丘比丘', titleEn: 'Machu Picchu', artist: '—（印加帝国）', year: '15 世纪', category: '遗址', country: '秘鲁', place: '库斯科', lat: -13.1631, lng: -72.5450, wiki: { lang: 'en', title: 'Machu_Picchu' }, hint: '看石墙的边缘如何顺着山势退让，让人造的几何与山体长成一体' },
+  { no: 'R027', title: '马丘比丘', titleEn: 'Machu Picchu', artist: '—（印加帝国）', year: '15 世纪', category: '遗址', country: '秘鲁', place: '库斯科', lat: -13.1631, lng: -72.5450, wiki: { lang: 'en', title: 'Machu_Picchu' }, hint: '看石墙的边缘如何顺着山势退让，让人造的几何与山体长成一体', image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Machu_Picchu,_Peru.jpg' },
   { no: 'R028', title: '摩艾石像', titleEn: 'Moai', artist: '—（拉帕努伊人）', year: '13–16 世纪', category: '雕塑', country: '智利', place: '复活节岛', lat: -27.1127, lng: -109.3497, wiki: { lang: 'en', title: 'Moai' }, hint: '看夸张的长脸与下垂的眼睑，如何用极简的体块制造出沉默的纪念性' },
   // ── 大洋洲 ─────────────────────────────────────────────────────────────
   { no: 'R029', title: '悉尼歌剧院', titleEn: 'Sydney Opera House', artist: '约恩·乌松', year: '1973', category: '建筑', country: '澳大利亚', place: '悉尼', lat: -33.8568, lng: 151.2153, wiki: { lang: 'en', title: 'Sydney_Opera_House' }, hint: '看那一组"贝壳"如何来自同一个球面的切片——自由的造型背后是严格的几何' },

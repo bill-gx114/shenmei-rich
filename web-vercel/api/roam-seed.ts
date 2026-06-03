@@ -79,6 +79,7 @@ async function fetchWiki(seed: RoamSeed): Promise<{ image: string | null; extrac
     /* fall through to PageImages */
   }
   if (!image) image = await pageImage(seed.wiki.lang, seed.wiki.title);
+  if (!image && seed.image) image = seed.image; // curated fallback
   return { image, extract };
 }
 
