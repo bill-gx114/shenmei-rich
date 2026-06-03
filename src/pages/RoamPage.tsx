@@ -50,8 +50,8 @@ export default function RoamPage() {
     const w = globeRef.current;
     if (!w) return;
     const selId = selectedRef.current?.id;
-    w.pointAltitude((d: Pt) => (d.id === selId ? 0.14 : 0.05))
-      .pointRadius((d: Pt) => (d.id === selId ? 0.7 : 0.36))
+    w.pointAltitude((d: Pt) => (d.id === selId ? 0.16 : 0.09))
+      .pointRadius((d: Pt) => (d.id === selId ? 1.3 : 0.95))
       .pointColor((d: Pt) => (collectedRef.current.has(d.id) ? '#fff1cf' : catColor(d.category)));
     w.ringsData(selectedRef.current ? [selectedRef.current as unknown as object] : [])
       .ringLat((d: Pt) => d.lat)
@@ -100,8 +100,8 @@ export default function RoamPage() {
         .pointsData(places as unknown as object[])
         .pointLat((d: Pt) => d.lat)
         .pointLng((d: Pt) => d.lng)
-        .pointAltitude((d: Pt) => (d.id === selectedRef.current?.id ? 0.14 : 0.05))
-        .pointRadius((d: Pt) => (d.id === selectedRef.current?.id ? 0.7 : 0.36))
+        .pointAltitude((d: Pt) => (d.id === selectedRef.current?.id ? 0.16 : 0.09))
+        .pointRadius((d: Pt) => (d.id === selectedRef.current?.id ? 1.3 : 0.95))
         .pointColor((d: Pt) =>
           collectedRef.current.has(d.id) ? '#fff1cf' : catColor(d.category),
         )

@@ -251,12 +251,14 @@ export function TodayPage({
 
         <div className="right-col">
           <WallLabel work={work} />
-          <AudioGuide
-            guide={work.audioGuide}
-            narratorVoice={tweaks.narratorVoice}
-            ttsEngine={tweaks.ttsEngine}
-            voiceName={tweaks.voiceName}
-          />
+          {Object.values(work.audioGuide?.variants ?? {}).some((a) => a && a.length > 0) && (
+            <AudioGuide
+              guide={work.audioGuide}
+              narratorVoice={tweaks.narratorVoice}
+              ttsEngine={tweaks.ttsEngine}
+              voiceName={tweaks.voiceName}
+            />
+          )}
         </div>
       </div>
 

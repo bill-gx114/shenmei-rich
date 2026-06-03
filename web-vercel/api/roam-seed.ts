@@ -35,10 +35,17 @@ type WikiSummary = {
   extract?: string;
 };
 
+// NOTE: ASCII-only User-Agent. This runs on the Node serverless runtime whose
+// undici fetch validates header values as ByteString — a non-ASCII (Chinese)
+// UA throws "Cannot convert argument to a ByteString", which silently made
+// every image fetch fail and left image_path empty. (The edge-runtime
+// daily-curator tolerates a Chinese UA; this one does not.)
+const WIKI_UA = 'shenmei-daily/1.0 (https://shenmei-rich.vercel.app)';
+
 async function fetchWiki(seed: RoamSeed): Promise<{ image: string | null; extract: string }> {
   const url = `https://${seed.wiki.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(seed.wiki.title)}`;
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': '审美日课/1.0 (roam)' } });
+    const r = await fetch(url, { headers: { 'User-Agent': WIKI_UA } });
     if (!r.ok) return { image: null, extract: '' };
     const d = (await r.json()) as WikiSummary;
     return {
@@ -147,6 +154,37 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? '', 'http://localhost');
   const only = url.searchParams.get('only');
+
+  // ?images=1 — repair roam works whose image_path is empty by re-fetching the
+  // Wikipedia image only (no AI regeneration). Fixes the Chinese-UA bug above.
+  if (url.searchParams.get('images') === '1') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, image_path')
+      .eq('kind', 'roam');
+    if (error) return sendJson(res, 500, { error: '查询失败', detail: error.message });
+    const bySeedNo = new Map(ROAM_SEEDS.map((s) => [s.no, s]));
+    const fixed: Array<{ no: string; image: string | null }> = [];
+    for (const w of rows ?? []) {
+      if (w.image_path) continue; // already has an image
+      const seed = bySeedNo.get(w.no as string);
+      if (!seed) continue;
+      const { image } = await fetchWiki(seed);
+      if (image) {
+        await supabase.from('works').update({ image_path: image }).eq('id', w.id);
+        fixed.push({ no: w.no as string, image });
+      } else {
+        fixed.push({ no: w.no as string, image: null });
+      }
+    }
+    return sendJson(res, 200, {
+      ok: true,
+      mode: 'images',
+      repaired: fixed.filter((f) => f.image).length,
+      stillEmpty: fixed.filter((f) => !f.image).map((f) => f.no),
+      results: fixed,
+    });
+  }
 
   // Which `no`s already exist → skip them (idempotent).
   const { data: existingRows, error: exErr } = await supabase
