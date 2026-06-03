@@ -42,19 +42,44 @@ type WikiSummary = {
 // daily-curator tolerates a Chinese UA; this one does not.)
 const WIKI_UA = 'shenmei-daily/1.0 (https://shenmei-rich.vercel.app)';
 
+// Fallback lead-image lookup via the PageImages API — more reliable than the
+// REST summary for some titles (notably places/sites like Machu Picchu, whose
+// summary returns no originalimage).
+async function pageImage(lang: string, title: string): Promise<string | null> {
+  try {
+    const u = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=pageimages&piprop=original|thumbnail&pithumbsize=1200&format=json&origin=*&titles=${encodeURIComponent(title)}`;
+    const r = await fetch(u, { headers: { 'User-Agent': WIKI_UA } });
+    if (!r.ok) return null;
+    const d = (await r.json()) as {
+      query?: { pages?: Record<string, { original?: { source: string }; thumbnail?: { source: string } }> };
+    };
+    const pages = d.query?.pages ?? {};
+    for (const p of Object.values(pages)) {
+      const src = p.original?.source ?? p.thumbnail?.source;
+      if (src) return src;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchWiki(seed: RoamSeed): Promise<{ image: string | null; extract: string }> {
   const url = `https://${seed.wiki.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(seed.wiki.title)}`;
+  let extract = '';
+  let image: string | null = null;
   try {
     const r = await fetch(url, { headers: { 'User-Agent': WIKI_UA } });
-    if (!r.ok) return { image: null, extract: '' };
-    const d = (await r.json()) as WikiSummary;
-    return {
-      image: d.originalimage?.source ?? d.thumbnail?.source ?? null,
-      extract: d.extract ?? '',
-    };
+    if (r.ok) {
+      const d = (await r.json()) as WikiSummary;
+      image = d.originalimage?.source ?? d.thumbnail?.source ?? null;
+      extract = d.extract ?? '';
+    }
   } catch {
-    return { image: null, extract: '' };
+    /* fall through to PageImages */
   }
+  if (!image) image = await pageImage(seed.wiki.lang, seed.wiki.title);
+  return { image, extract };
 }
 
 async function seedOne(
