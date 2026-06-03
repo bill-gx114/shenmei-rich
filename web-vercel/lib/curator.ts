@@ -70,7 +70,10 @@ const CORE_SYSTEM_PROMPT = `${STYLE_BASE}
 
 只输出 JSON，不要任何解释或 markdown 代码块标记。所有字段都必须有内容，不允许留空数组。`;
 
-const AUDIO_SYSTEM_PROMPT = `${STYLE_BASE}
+// `lines` lets the retry ask for a SHORTER script — a long response is the main
+// cause of truncation/timeout on the audio call, so the 2nd attempt degrades to
+// fewer lines to fit more reliably.
+const audioSystemPrompt = (lines: string, min: number) => `${STYLE_BASE}
 
 你将收到一件作品的标题、作者，以及一句话的感觉。请为它写三档语音导览脚本，返回**严格 JSON**，结构如下：
 
@@ -83,8 +86,8 @@ const AUDIO_SYSTEM_PROMPT = `${STYLE_BASE}
 }
 
 要求：
-- 每一档 8-12 行，t 从 0 递增覆盖到约 150 秒。第一句让眼睛先看一会，最后一句邀请写下观察。
-- 三个 key 必须都出现，且每档都要有 8 行以上，不允许留空。
+- 每一档 ${lines} 行，t 从 0 递增覆盖到约 ${min >= 8 ? 150 : 110} 秒。第一句让眼睛先看一会，最后一句邀请写下观察。
+- 三个 key 必须都出现，且每档都要有 ${min} 行以上，不允许留空。
 - 三档讲同一组观察点，但用词与节奏明显不同：
   · 清·克制：短句，留呼吸，每句 20-40 字，避免"我觉得 / 我们看到"这类口头话，像一位克制的展厅讲解员。
   · 专业·锐利：术语用得准（构图、色温、肌理、负空间），节奏更快，每句 25-45 字，直接给判断不绕弯。
@@ -216,18 +219,19 @@ export async function generateAudioScripts(
 ): Promise<Record<VoiceKey, AudioLine[]>> {
   const apiKey = requireApiKey();
   const userPrompt = buildUserPrompt(input);
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Attempt 0: full script. Attempt 1: shorter script (fewer lines) so a
+  // truncation/timeout on the heavy first try degrades to something that fits.
+  const variants = [
+    { sys: audioSystemPrompt('8-12', 8), tok: 8192 },
+    { sys: audioSystemPrompt('6-8', 6), tok: 8192 },
+  ];
+  for (const v of variants) {
     try {
-      const a = await callDeepSeek<{ audioLines?: unknown }>(
-        apiKey,
-        AUDIO_SYSTEM_PROMPT,
-        userPrompt,
-        8192,
-      );
+      const a = await callDeepSeek<{ audioLines?: unknown }>(apiKey, v.sys, userPrompt, v.tok);
       const normalized = normalizeAudio(a.audioLines);
-      if (VOICE_KEYS.some((v) => normalized[v].length)) return normalized;
+      if (VOICE_KEYS.some((k) => normalized[k].length)) return normalized;
     } catch {
-      // swallow — retry, then give up gracefully
+      // swallow — try the lighter variant, then give up gracefully
     }
   }
   return normalizeAudio(null);

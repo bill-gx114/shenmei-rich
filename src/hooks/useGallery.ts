@@ -109,10 +109,27 @@ async function queryTodayWork(): Promise<Work | null> {
 // Self-heal: only one trigger per page load, so concurrent visitors / re-renders
 // don't fire the (idempotent, but slow) generator repeatedly.
 let selfHealAttempted = false;
+let audioHealAttempted = false;
+
+/** True when a work has no audio script in any voice. */
+function audioEmpty(w: Work): boolean {
+  const variants = w.audioGuide?.variants ?? {};
+  return Object.values(variants).every((arr) => !arr || arr.length === 0);
+}
 
 async function fetchTodayWork(): Promise<Work | null> {
   const existing = await queryTodayWork();
-  if (existing) return existing;
+  if (existing) {
+    // The daily generator occasionally drops the (heavy) audio step while the
+    // rest of the pack lands. The missing-work self-heal below won't catch this
+    // (the work exists), so trigger the idempotent backfill — fire-and-forget so
+    // we don't block this render; everyone after the first viewer gets audio.
+    if (!existing.ownerId && audioEmpty(existing) && !audioHealAttempted) {
+      audioHealAttempted = true;
+      void fetch('/api/daily-curator?backfill=1').catch(() => {});
+    }
+    return existing;
+  }
 
   // No work for today. The daily cron (Vercel Hobby tier) doesn't guarantee
   // exact timing and can occasionally be skipped, so we lazily trigger the
