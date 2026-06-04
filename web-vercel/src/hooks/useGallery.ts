@@ -259,6 +259,7 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
       keywords: [],
       reflection: w.short_label ?? '',
       region: (w.region as 'east' | 'west' | null) ?? null,
+      roam: isRoam,
     } as ArchiveWork;
   });
 }

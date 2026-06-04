@@ -4,6 +4,7 @@ import type { ArchiveWork } from '../lib/types';
 const FILTERS = [
   { id: 'all', label: '全部' },
   { id: 'pinned', label: '★ 收藏' },
+  { id: 'roam', label: '全球漫游' },
   { id: 'month', label: '本月' },
   { id: 'east', label: '东方' },
   { id: 'west', label: '西方' },
@@ -66,14 +67,17 @@ export function ArchivePage({ works, onOpen, stats, hasUser = true, onLogin }: P
     switch (filter) {
       case 'pinned':
         return w.pinned;
+      case 'roam':
+        return w.roam;
       case 'month':
-        return !!w.exhibitedOn && w.exhibitedOn.startsWith(thisYM);
+        return !w.roam && !!w.exhibitedOn && w.exhibitedOn.startsWith(thisYM);
       case 'east':
-        return w.region === 'east';
+        return !w.roam && w.region === 'east';
       case 'west':
-        return w.region === 'west';
+        return !w.roam && w.region === 'west';
       default:
-        return true;
+        // 全部 = the daily timeline only; roam collections live under their own tab.
+        return !w.roam;
     }
   });
   const s = stats ?? { visited: works.length, pinned: works.filter((w) => w.pinned).length, vocabulary: 0 };

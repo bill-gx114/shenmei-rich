@@ -56,6 +56,8 @@ export type ArchiveWork = {
   reflection: string;
   /** Optional for legacy mock data; null if backfill skipped this row. */
   region?: 'east' | 'west' | null;
+  /** True when this is a 全球漫游 landmark collected into 馆藏 (not a daily work). */
+  roam?: boolean;
 };
 
 /** A point on the 全球漫游 globe — either a curated roam landmark or a daily
