@@ -1945,24 +1945,24 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ── 全球漫游 (Global Roaming) ─────────────────────────────────────────── */
-.roam-root { padding: 28px clamp(16px, 4vw, 56px) 48px; }
-.roam-head { max-width: 720px; margin: 0 auto 18px; text-align: center; }
+.roam-root { padding: 18px clamp(16px, 4vw, 56px) 28px; }
+.roam-head { margin: 0 0 12px; text-align: left; }
 .roam-eyebrow {
   font-family: var(--display); font-style: italic; color: var(--gold);
-  letter-spacing: 0.32em; text-transform: uppercase; font-size: 12px; margin-bottom: 10px;
+  letter-spacing: 0.32em; text-transform: uppercase; font-size: 12px; margin-bottom: 8px;
 }
 .roam-title {
-  font-family: var(--serif); font-weight: 300; font-size: clamp(26px, 4vw, 38px);
-  margin: 0 0 10px; letter-spacing: 0.04em;
+  font-family: var(--serif); font-weight: 300; font-size: clamp(24px, 3.2vw, 32px);
+  margin: 0 0 8px; letter-spacing: 0.04em;
 }
-.roam-sub { color: var(--ink-3); font-family: var(--serif); font-size: 14.5px; line-height: 1.8; margin: 0 auto; max-width: 560px; }
-.roam-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; }
+.roam-sub { color: var(--ink-3); font-family: var(--serif); font-size: 14px; line-height: 1.7; margin: 0; max-width: 720px; }
+.roam-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: flex-start; margin-top: 12px; }
 .roam-legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-3); font-size: 12px; letter-spacing: 0.06em; }
 .roam-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; }
 
 .roam-stage {
-  position: relative; margin: 18px auto 0; max-width: 1180px;
-  height: min(70vh, 680px); min-height: 420px;
+  position: relative; margin: 14px 0 0; max-width: 1180px;
+  height: min(58vh, 560px); min-height: 360px;
   border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden;
   background: radial-gradient(120% 120% at 50% -10%, #100b16, #07060a 70%);
 }
