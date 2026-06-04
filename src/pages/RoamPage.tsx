@@ -62,8 +62,36 @@ function spread(places: RoamPlace[]): RoamPlace[] {
   return out;
 }
 
+// Bucket a coordinate into a continent/region for the side index. Order of
+// checks matters (Europe before MENA, East Asia before South/SE Asia).
+const CONTINENT_ORDER = ['欧洲', '东亚', '南亚 · 东南亚', '中东 · 非洲', '美洲', '大洋洲'];
+function continentOf(lat: number, lng: number): string {
+  if (lng >= -11 && lng <= 45 && lat >= 34) return '欧洲';
+  if (lng >= 95 && lng <= 150 && lat >= 18) return '东亚';
+  if (lng >= 60 && lng <= 112 && lat >= -11 && lat < 34) return '南亚 · 东南亚';
+  if (lng <= -30) return '美洲';
+  if (lng >= 110 && lat < -10) return '大洋洲';
+  return '中东 · 非洲';
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Pt = any;
+
+type IndexGroup = { continent: string; items: RoamPlace[] };
+function buildIndex(places: RoamPlace[]): IndexGroup[] {
+  const m = new Map<string, RoamPlace[]>();
+  for (const p of places) {
+    const c = continentOf(p.lat, p.lng);
+    const g = m.get(c);
+    if (g) g.push(p);
+    else m.set(c, [p]);
+  }
+  const rank = (p: RoamPlace) => (p.locked ? 2 : p.kind === 'roam' ? 0 : 1);
+  return CONTINENT_ORDER.filter((c) => m.has(c)).map((c) => ({
+    continent: c,
+    items: m.get(c)!.slice().sort((a, b) => rank(a) - rank(b) || a.no.localeCompare(b.no)),
+  }));
+}
 
 export default function RoamPage() {
   const nav = useNavigate();
@@ -78,6 +106,7 @@ export default function RoamPage() {
   const selectedRef = useRef<RoamPlace | null>(null);
   const collectedRef = useRef<Set<string>>(new Set());
   const placesRef = useRef<RoamPlace[]>([]);
+  const hoveredRef = useRef<RoamPlace | null>(null);
   selectedRef.current = selected;
   collectedRef.current = collected;
 
@@ -99,6 +128,7 @@ export default function RoamPage() {
   const radiusFor = useCallback(
     (d: Pt) => {
       if (d.id === selectedRef.current?.id) return 1.4;
+      if (d.id === hoveredRef.current?.id) return 1.35;
       if (d.locked) return 0.62;
       if (isToday(d)) return 1.3;
       return d.kind === 'daily' ? 0.85 : 1.05;
@@ -134,6 +164,8 @@ export default function RoamPage() {
     if (selectedRef.current && !selectedRef.current.locked && selectedRef.current.id !== todayPlace?.id) {
       rings.push(selectedRef.current);
     }
+    const hov = hoveredRef.current;
+    if (hov && hov.id !== todayPlace?.id && hov.id !== selectedRef.current?.id) rings.push(hov);
     w.ringsData(rings as unknown as object[])
       .ringLat((d: Pt) => d.lat)
       .ringLng((d: Pt) => d.lng)
@@ -169,6 +201,15 @@ export default function RoamPage() {
       refreshMarkers();
     }
   }, [refreshMarkers]);
+
+  // Hover from the side index → highlight the matching marker on the globe.
+  const hover = useCallback(
+    (p: RoamPlace | null) => {
+      hoveredRef.current = p;
+      refreshMarkers();
+    },
+    [refreshMarkers],
+  );
 
   // Build the globe once places + container are ready.
   useEffect(() => {
@@ -270,6 +311,7 @@ export default function RoamPage() {
   }, [selected, session, collected, nav]);
 
   const isCollected = selected ? collected.has(selected.id) : false;
+  const groups = places ? buildIndex(places) : [];
 
   return (
     <div className="roam-root">
@@ -306,6 +348,7 @@ export default function RoamPage() {
       </div>
 
       <div className="roam-stage">
+        <div className="roam-globe-wrap">
         <div ref={containerRef} className="roam-globe" />
 
         {(loading || (!places?.length && !glError)) && (
@@ -390,6 +433,56 @@ export default function RoamPage() {
             </div>
           </aside>
         )}
+        </div>
+
+        <aside className="roam-index">
+          {groups.map((g) => (
+            <div key={g.continent} className="roam-index-group">
+              <div className="roam-index-h">
+                {g.continent}
+                <span>{g.items.length}</span>
+              </div>
+              {g.items.map((p) => (
+                <button
+                  key={p.id}
+                  className={
+                    'roam-index-row' +
+                    (selected?.id === p.id ? ' on' : '') +
+                    (p.locked ? ' locked' : '')
+                  }
+                  onMouseEnter={() => hover(p)}
+                  onMouseLeave={() => hover(null)}
+                  onClick={() => selectPlace(p)}
+                >
+                  {p.locked ? (
+                    <>
+                      <span className="roam-index-thumb lock">🔒</span>
+                      <span className="roam-index-text">
+                        <b>未揭晓</b>
+                        <i>{fmtRevealDate(p.exhibitedOn)} 揭晓</i>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {p.image ? (
+                        <span
+                          className="roam-index-thumb"
+                          style={{ backgroundImage: `url(${p.image})` }}
+                        />
+                      ) : (
+                        <span className="roam-index-thumb" style={{ background: colorFor(p) }} />
+                      )}
+                      <span className="roam-index-text">
+                        <b>{p.title}</b>
+                        <i>{p.place}</i>
+                      </span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </aside>
       </div>
     </div>
   );
