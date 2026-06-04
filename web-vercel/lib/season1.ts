@@ -21,6 +21,9 @@ export type SeasonWork = {
   region: 'east' | 'west';
   category: '画' | '雕' | '器';
   week: number;
+  /** Optional English Wikipedia article title — a reliable image source for
+   *  Chinese works whose zh article lacks a lead image. */
+  en?: string;
 };
 
 export const WEEK_THEMES: Record<number, string> = {
@@ -94,10 +97,10 @@ export const SEASON1: SeasonWork[] = [
   { title: '早春图', artist: '郭熙', slug: '早春图', lang: 'zh', region: 'east', category: '画', week: 7 },
   { title: '万壑松风图', artist: '李唐', slug: '万壑松风图', lang: 'zh', region: 'east', category: '画', week: 7 },
   { title: '庐山高图', artist: '沈周', slug: '庐山高图', lang: 'zh', region: 'east', category: '画', week: 7 },
-  { title: '鹊华秋色图', artist: '赵孟頫', slug: '鹊华秋色图', lang: 'zh', region: 'east', category: '画', week: 7 },
+  { title: '鹊华秋色图', artist: '赵孟頫', slug: '鹊华秋色图', lang: 'zh', region: 'east', category: '画', week: 7, en: 'Autumn_Colors_on_the_Que_and_Hua_Mountains' },
   { title: '渔庄秋霁图', artist: '倪瓒', slug: '渔庄秋霁图', lang: 'zh', region: 'east', category: '画', week: 7 },
   // 第 8 周 · 人物与神态
-  { title: '簪花仕女图', artist: '周昉', slug: '簪花仕女图', lang: 'zh', region: 'east', category: '画', week: 8 },
+  { title: '簪花仕女图', artist: '周昉', slug: '簪花仕女图', lang: 'zh', region: 'east', category: '画', week: 8, en: 'Court_Ladies_Adorning_Their_Hair_with_Flowers' },
   { title: '韩熙载夜宴图', artist: '顾闳中', slug: '韩熙载夜宴图', lang: 'zh', region: 'east', category: '画', week: 8 },
   { title: '步辇图', artist: '阎立本', slug: '步辇图', lang: 'zh', region: 'east', category: '画', week: 8 },
   { title: '抱银鼠的女子', artist: '达·芬奇', slug: 'Lady_with_an_Ermine', region: 'west', category: '画', week: 8 },

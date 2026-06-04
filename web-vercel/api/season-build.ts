@@ -82,6 +82,16 @@ async function resolveImage(w: SeasonWork): Promise<string | null> {
   const other = own === 'zh' ? 'en' : 'zh';
   const direct = await fetchWiki(own, w.slug);
   if (direct.image) return direct.image;
+  // Curated English article (reliable for Chinese works whose zh page lacks an image).
+  if (w.en) {
+    const enHit = await fetchWiki('en', w.en);
+    if (enHit.image) return enHit.image;
+    const enSlug = await searchSlug('en', w.en.replace(/_/g, ' '));
+    if (enSlug) {
+      const { image } = await fetchWiki('en', enSlug);
+      if (image) return image;
+    }
+  }
   for (const [lang, query] of [
     [own, w.title],
     [own, `${w.title} ${w.artist}`],
