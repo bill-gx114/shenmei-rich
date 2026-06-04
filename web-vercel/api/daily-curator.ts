@@ -167,6 +167,11 @@ async function backfillIncompleteWorks(supabase: SupabaseClient): Promise<Respon
       'id, no, title, artist, short_label, audio_lines:audio_lines(count), questions:questions(count), vocabulary:vocabulary(count)',
     )
     .is('owner_id', null)
+    .eq('kind', 'daily')
+    // Only repair REVEALED works. Pre-seeded season works (future dates) are
+    // already complete and would otherwise crowd out today's work from the
+    // newest-first scan window, leaving a genuinely-broken today unrepaired.
+    .lte('exhibited_on', beijingTodayISO())
     .order('exhibited_on', { ascending: false })
     .limit(60);
   if (error) {
