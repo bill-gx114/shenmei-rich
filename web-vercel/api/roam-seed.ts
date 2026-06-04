@@ -19,14 +19,30 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROAM_SEEDS, type RoamSeed } from '../lib/roamSeed.js';
-import { generateCorePack } from '../lib/curator.js';
+import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 
 export const config = { maxDuration: 60 };
+const AUDIO_BUDGET_MS = 32_000;
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(body));
+}
+
+function sendAudioPage(res: ServerResponse, built: number, total: number, remaining: number, log: string[]) {
+  const done = remaining === 0;
+  const refresh = done ? '' : '<meta http-equiv="refresh" content="2">';
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html><html><head><meta charset="utf-8">${refresh}<title>漫游语音生成</title></head>
+<body style="background:#0b0907;color:#e7c067;font-family:'Songti SC',serif;text-align:center;padding:56px 20px;line-height:1.8">
+<div style="font-size:13px;letter-spacing:.3em;color:#998c70">GLOBAL ROAMING · AUDIO</div>
+<h1 style="font-weight:300">全球漫游 · 语音生成</h1>
+<div style="font-size:42px;color:#ffd166">${built} / ${total}</div>
+<p style="color:#d9c8a0">${done ? '✅ 全部地标已配齐语音。' : '生成中…本页每 2 秒自动续跑，保持打开即可。'}</p>
+<pre style="color:#8f8268;font-size:12px;text-align:left;max-width:560px;margin:24px auto;white-space:pre-wrap">${log.join('\n') || '正在启动…'}</pre>
+</body></html>`);
 }
 
 type WikiSummary = {
@@ -180,6 +196,44 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? '', 'http://localhost');
   const only = url.searchParams.get('only');
+
+  // ?audio=1 — generate the three voice scripts for roam landmarks missing them
+  // (roam was seeded without audio). Time-boxed; ?auto=1 self-refreshes.
+  if (url.searchParams.get('audio') === '1') {
+    const auto = url.searchParams.get('auto') === '1';
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, artist, audio_lines:audio_lines(count)')
+      .eq('kind', 'roam');
+    if (error) return sendJson(res, 500, { error: '查询失败', detail: error.message });
+    type Row = { id: string; no: string; title: string; artist: string; audio_lines: Array<{ count: number }> };
+    const all = (rows ?? []) as Row[];
+    const seedByNo = new Map(ROAM_SEEDS.map((s) => [s.no, s]));
+    const missing = all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
+    const started = Date.now();
+    const log: string[] = [];
+    let madeOk = 0;
+    for (const r of missing) {
+      if (Date.now() - started > AUDIO_BUDGET_MS) break;
+      const seed = seedByNo.get(r.no);
+      const audio = await generateAudioScripts({ title: r.title, artist: r.artist, hint: seed?.hint });
+      const lines: Array<{ work_id: string; t: number; text: string; order_index: number; voice: string }> = [];
+      for (const voice of VOICE_KEYS) {
+        (audio?.[voice] ?? []).forEach((l, i) => lines.push({ work_id: r.id, t: l.t, text: l.text, order_index: i, voice }));
+      }
+      if (lines.length) {
+        const ins = await supabase.from('audio_lines').insert(lines);
+        if (ins.error) log.push(`${r.no} ${r.title} ✗ ${ins.error.message}`);
+        else { madeOk++; log.push(`${r.no} ${r.title} ✓`); }
+      } else {
+        log.push(`${r.no} ${r.title} ✗ 语音生成为空`);
+      }
+    }
+    const withAudioAfter = all.length - missing.length + madeOk;
+    const remaining = all.length - withAudioAfter;
+    if (auto) return sendAudioPage(res, withAudioAfter, all.length, remaining, log);
+    return sendJson(res, 200, { ok: true, mode: 'audio', withAudio: withAudioAfter, total: all.length, remaining, log });
+  }
 
   // ?images=1 — repair roam works whose image_path is empty by re-fetching the
   // Wikipedia image only (no AI regeneration). Fixes the Chinese-UA bug above.
