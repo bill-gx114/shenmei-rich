@@ -98,10 +98,10 @@ export default function RoamPage() {
   );
   const radiusFor = useCallback(
     (d: Pt) => {
-      if (d.id === selectedRef.current?.id) return 1.3;
-      if (d.locked) return 0.5;
-      if (isToday(d)) return 1.2;
-      return d.kind === 'daily' ? 0.72 : 0.95;
+      if (d.id === selectedRef.current?.id) return 1.4;
+      if (d.locked) return 0.62;
+      if (isToday(d)) return 1.3;
+      return d.kind === 'daily' ? 0.85 : 1.05;
     },
     [isToday],
   );
@@ -191,10 +191,13 @@ export default function RoamPage() {
         .pointColor(colorFor)
         .pointLabel((d: Pt) => {
           if (d.locked) {
-            return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.3);color:#8f8268;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap">🔒 ${fmtRevealDate(d.exhibitedOn)} 揭晓</div>`;
+            return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.9);border:1px solid rgba(231,192,103,.3);color:#8f8268;padding:7px 11px;border-radius:8px;font-size:12.5px;white-space:nowrap">🔒 ${fmtRevealDate(d.exhibitedOn)} 揭晓</div>`;
           }
           const tag = d.kind === 'daily' ? (isToday(d) ? '今日展厅' : '日课') : d.category;
-          return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.5);color:#f6ecd4;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap"><b style="color:#e7c067">${d.title}</b> · ${tag}<br/><span style="color:#8f8268">${d.place}</span></div>`;
+          const img = d.image
+            ? `<div style="width:184px;height:116px;background:#000 url('${d.image}') center/cover no-repeat;border-radius:6px;margin-bottom:8px"></div>`
+            : '';
+          return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.92);border:1px solid rgba(231,192,103,.55);color:#f6ecd4;padding:9px;border-radius:10px;width:202px;box-shadow:0 14px 40px rgba(0,0,0,.5)">${img}<div style="font-size:15px;color:#f6ecd4;line-height:1.3"><b style="color:#e7c067">${d.title}</b></div><div style="font-size:11.5px;color:#998c70;margin-top:3px">${tag}${d.place ? ' · ' + d.place : ''}</div><div style="font-size:10.5px;color:#6f6650;margin-top:6px;letter-spacing:.08em">点击 · 看赏析与收藏</div></div>`;
         })
         .onPointClick((d: object) => selectPlace(d as RoamPlace));
     } catch {
@@ -217,8 +220,22 @@ export default function RoamPage() {
     const ro = new ResizeObserver(sizeToBox);
     ro.observe(containerRef.current);
 
+    // Pause the idle spin whenever the cursor is over the globe, so aiming at a
+    // marker isn't chasing a moving target. Resume on leave (unless a panel is open).
+    const el = containerRef.current;
+    const pause = () => {
+      world.controls().autoRotate = false;
+    };
+    const resume = () => {
+      if (!selectedRef.current) world.controls().autoRotate = true;
+    };
+    el.addEventListener('mouseenter', pause);
+    el.addEventListener('mouseleave', resume);
+
     return () => {
       ro.disconnect();
+      el.removeEventListener('mouseenter', pause);
+      el.removeEventListener('mouseleave', resume);
       try {
         // globe.gl exposes a _destructor for teardown.
         (world as unknown as { _destructor?: () => void })._destructor?.();
