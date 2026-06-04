@@ -81,6 +81,9 @@ export type RoamPlace = {
   kind: 'roam' | 'daily';
   /** For daily works — the date it was on display (used to flag "today"). */
   exhibitedOn?: string;
+  /** True for a not-yet-revealed future daily work: shown as a dim locked dot
+   *  with only its reveal date — title/image/content are NOT fetched. */
+  locked?: boolean;
 };
 
 export type Pattern = {

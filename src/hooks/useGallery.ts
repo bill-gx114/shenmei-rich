@@ -352,18 +352,54 @@ export function useArchive(): LoadState<ArchiveWork[]> & { refresh: () => void }
 // lat/lng; daily works only after the coords backfill, so `.not('lat','is',null)`
 // naturally includes all roam + only the located daily works.
 async function fetchRoamPlaces(): Promise<RoamPlace[]> {
-  const { data, error } = await supabase
-    .from('works')
-    .select(
-      'id, no, title, artist, artist_romaji, year, category, location, room, lat, lng, image_path, short_label, curator_note, kind, exhibited_on, hotspots(label, detail, order_index)',
-    )
-    .in('kind', ['roam', 'daily'])
-    .not('lat', 'is', null)
-    // Don't plot daily works whose reveal date is still in the future. (roam
-    // works use a 2000-01-01 sentinel, so they always pass.)
-    .lte('exhibited_on', todayISO())
-    .order('no', { ascending: true });
+  const today = todayISO();
+  // Two queries so future works NEVER leak their content over the network:
+  //  • revealed (roam + daily ≤ today): full content.
+  //  • locked (daily > today): coordinates + reveal date ONLY — shown as a dim
+  //    "待开放" dot. (roam uses a 2000-01-01 sentinel so it's always revealed.)
+  const [revealedRes, lockedRes] = await Promise.all([
+    supabase
+      .from('works')
+      .select(
+        'id, no, title, artist, artist_romaji, year, category, location, room, lat, lng, image_path, short_label, curator_note, kind, exhibited_on, hotspots(label, detail, order_index)',
+      )
+      .in('kind', ['roam', 'daily'])
+      .not('lat', 'is', null)
+      .lte('exhibited_on', today)
+      .order('no', { ascending: true }),
+    supabase
+      .from('works')
+      .select('id, no, lat, lng, exhibited_on')
+      .eq('kind', 'daily')
+      .not('lat', 'is', null)
+      .gt('exhibited_on', today),
+  ]);
+  const { data, error } = revealedRes;
   if (error) throw error;
+  if (lockedRes.error) throw lockedRes.error;
+  const locked: RoamPlace[] = (
+    (lockedRes.data ?? []) as Array<{ id: string; no: string; lat: number | string; lng: number | string; exhibited_on: string }>
+  )
+    .map((w) => ({
+      id: w.id,
+      no: w.no,
+      title: '',
+      titleEn: '',
+      artist: '',
+      year: '',
+      category: '',
+      place: '',
+      lat: Number(w.lat),
+      lng: Number(w.lng),
+      image: '',
+      shortLabel: '',
+      curatorNote: '',
+      points: [],
+      kind: 'daily' as const,
+      exhibitedOn: w.exhibited_on ?? undefined,
+      locked: true,
+    }))
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
   type Row = {
     id: string;
     no: string;
@@ -383,7 +419,7 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
     exhibited_on: string | null;
     hotspots: Array<{ label: string; detail: string; order_index: number }> | null;
   };
-  return ((data ?? []) as Row[])
+  const revealed = ((data ?? []) as Row[])
     .map((w) => ({
       id: w.id,
       no: w.no,
@@ -406,8 +442,10 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
         .map((h) => ({ label: h.label, detail: h.detail })),
       kind: (w.kind ?? 'daily') as 'roam' | 'daily',
       exhibitedOn: w.exhibited_on ?? undefined,
+      locked: false,
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  return [...revealed, ...locked];
 }
 
 export function useRoamPlaces(): LoadState<RoamPlace[]> & { refresh: () => void } {

@@ -23,6 +23,13 @@ const catColor = (c: string) => CATEGORY_COLOR[c] ?? '#e7c067';
 const TODAY_GOLD = '#ffd166';
 const DAILY_HUE = '#b9a87f';
 const COLLECTED = '#fff1cf';
+const LOCKED_HUE = '#4a4330'; // dim "待开放" dot for not-yet-revealed works
+
+function fmtRevealDate(iso?: string): string {
+  if (!iso) return '';
+  const [, m, d] = iso.split('-');
+  return `${Number(m)}月${Number(d)}日`;
+}
 
 function beijingTodayISO(): string {
   const b = new Date(Date.now() + 8 * 3600 * 1000);
@@ -81,6 +88,7 @@ export default function RoamPage() {
   );
   const colorFor = useCallback(
     (d: Pt) => {
+      if (d.locked) return LOCKED_HUE;
       if (collectedRef.current.has(d.id)) return COLLECTED;
       if (isToday(d)) return TODAY_GOLD;
       if (d.kind === 'daily') return DAILY_HUE;
@@ -91,6 +99,7 @@ export default function RoamPage() {
   const radiusFor = useCallback(
     (d: Pt) => {
       if (d.id === selectedRef.current?.id) return 1.3;
+      if (d.locked) return 0.5;
       if (isToday(d)) return 1.2;
       return d.kind === 'daily' ? 0.72 : 0.95;
     },
@@ -99,6 +108,7 @@ export default function RoamPage() {
   const altFor = useCallback(
     (d: Pt) => {
       if (d.id === selectedRef.current?.id) return 0.16;
+      if (d.locked) return 0.035;
       if (isToday(d)) return 0.14;
       return d.kind === 'daily' ? 0.07 : 0.09;
     },
@@ -121,7 +131,7 @@ export default function RoamPage() {
     const rings: RoamPlace[] = [];
     const todayPlace = placesRef.current.find((p) => isToday(p));
     if (todayPlace) rings.push(todayPlace);
-    if (selectedRef.current && selectedRef.current.id !== todayPlace?.id) {
+    if (selectedRef.current && !selectedRef.current.locked && selectedRef.current.id !== todayPlace?.id) {
       rings.push(selectedRef.current);
     }
     w.ringsData(rings as unknown as object[])
@@ -180,6 +190,9 @@ export default function RoamPage() {
         .pointRadius(radiusFor)
         .pointColor(colorFor)
         .pointLabel((d: Pt) => {
+          if (d.locked) {
+            return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.3);color:#8f8268;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap">🔒 ${fmtRevealDate(d.exhibitedOn)} 揭晓</div>`;
+          }
           const tag = d.kind === 'daily' ? (isToday(d) ? '今日展厅' : '日课') : d.category;
           return `<div style="font-family:Songti SC,serif;background:rgba(11,9,7,.86);border:1px solid rgba(231,192,103,.5);color:#f6ecd4;padding:6px 10px;border-radius:6px;font-size:12.5px;white-space:nowrap"><b style="color:#e7c067">${d.title}</b> · ${tag}<br/><span style="color:#8f8268">${d.place}</span></div>`;
         })
@@ -268,6 +281,10 @@ export default function RoamPage() {
             <i style={{ background: COLLECTED }} />
             已收藏
           </span>
+          <span className="roam-legend-item">
+            <i style={{ background: LOCKED_HUE, boxShadow: 'none' }} />
+            未揭晓
+          </span>
         </div>
       </div>
 
@@ -286,7 +303,23 @@ export default function RoamPage() {
           </div>
         )}
 
-        {selected && (
+        {selected && selected.locked && (
+          <aside className="roam-panel">
+            <button className="roam-close" onClick={closePanel} aria-label="关闭">
+              ×
+            </button>
+            <div className="roam-panel-body roam-locked">
+              <div className="roam-lock-icon">🔒</div>
+              <div className="roam-lock-eyebrow">尚未开放</div>
+              <div className="roam-lock-date">{fmtRevealDate(selected.exhibitedOn)}</div>
+              <p className="roam-lock-hint">
+                这件作品将在 {fmtRevealDate(selected.exhibitedOn)} 揭晓。每天一件，慢慢看——到那天，这盏灯会亮起来。
+              </p>
+            </div>
+          </aside>
+        )}
+
+        {selected && !selected.locked && (
           <aside className="roam-panel">
             <button className="roam-close" onClick={closePanel} aria-label="关闭">
               ×

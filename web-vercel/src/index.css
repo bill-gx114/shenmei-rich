@@ -2025,3 +2025,13 @@ button { font-family: inherit; cursor: pointer; }
   }
   .roam-panel-img { height: 150px; }
 }
+
+/* 全球漫游 · 未揭晓(locked)详情卡 */
+.roam-locked { text-align: center; padding: 40px 24px 36px; }
+.roam-lock-icon { font-size: 34px; opacity: 0.7; margin-bottom: 12px; }
+.roam-lock-eyebrow {
+  font-family: var(--display); font-style: italic; color: var(--ink-3);
+  letter-spacing: 0.3em; text-transform: uppercase; font-size: 12px; margin-bottom: 10px;
+}
+.roam-lock-date { font-family: var(--serif); font-size: 30px; color: var(--gold); letter-spacing: 0.04em; margin-bottom: 14px; }
+.roam-lock-hint { font-family: var(--serif); color: var(--ink-3); font-size: 13.5px; line-height: 1.85; margin: 0 auto; max-width: 280px; }
