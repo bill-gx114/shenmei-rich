@@ -93,7 +93,7 @@ function buildIndex(places: RoamPlace[]): IndexGroup[] {
   }));
 }
 
-export default function RoamPage() {
+export default function RoamPage({ onCollectChange }: { onCollectChange?: () => void } = {}) {
   const nav = useNavigate();
   const { session } = useSession();
   const { data: places, loading, error } = useRoamPlaces();
@@ -305,10 +305,11 @@ export default function RoamPage() {
     setCollected(next); // optimistic
     try {
       await togglePin(selected.id, already);
+      onCollectChange?.(); // let 馆藏 refresh so the pin shows up there
     } catch {
       setCollected(collected); // revert
     }
-  }, [selected, session, collected, nav]);
+  }, [selected, session, collected, nav, onCollectChange]);
 
   const isCollected = selected ? collected.has(selected.id) : false;
   const groups = places ? buildIndex(places) : [];

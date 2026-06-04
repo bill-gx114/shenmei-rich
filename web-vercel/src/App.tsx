@@ -216,7 +216,7 @@ function MuseumShell() {
             </div>
           }
         >
-          <RoamPage />
+          <RoamPage onCollectChange={() => archive.refresh()} />
         </Suspense>
       )}
       {tab === 'archive' && (
