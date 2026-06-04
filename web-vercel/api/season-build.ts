@@ -1,19 +1,20 @@
-// GET /api/season-build?auto=1   → open once, the page self-refreshes and drives
-//                                   the whole season to completion (recommended).
-// GET /api/season-build           → process one time-boxed batch, return JSON.
-// GET /api/season-build?audio=0    → skip audio (faster text-only pass).
+// GET /api/season-build?auto=1              → phase 1: core + image (fast)
+// GET /api/season-build?auto=1&phase=audio   → phase 2: the three voice scripts
+// (append nothing for JSON instead of the self-refreshing HTML page.)
 //
 // Pre-generates the Season-1 curriculum (lib/season1.ts) into the works table as
-// global daily works, ONE PER FUTURE DAY, so the app reveals them on schedule
-// with no midnight generation. Idempotent + time-boxed + resumable.
+// global daily works, ONE PER FUTURE DAY, revealed on schedule (no midnight gen).
 //
-// Scheduling anchor (stable across batches):
-//   • Season works are tagged series='season1' so we can tell them apart from
-//     cron-published works even when titles overlap.
-//   • Each season work i gets exhibited_on = START + i days, no = BASENO + i.
-//   • START/BASENO are recovered from any already-built season work
-//     (date_i − i ; no_i − i); on the very first run they're computed as the day
-//     AFTER the latest existing daily work (so it dovetails with what's shown).
+// Why two phases: audio is the slow part (~12s/work). Generating core+audio
+// together pushed a single invocation past Vercel's 60s ceiling → 504. So phase 1
+// bakes the must-have content + image (each work ~8s, like the proven roam-seed),
+// and phase 2 fills audio separately. Both are idempotent, time-boxed (well under
+// 60s), resumable, and self-drive via ?auto=1.
+//
+// Scheduling anchor (phase 1, stable across batches): season works are tagged
+// series='season1'; each work i gets exhibited_on = START + i days, no = BASENO + i,
+// where START/BASENO are recovered from any built season work (date_i − i ; no_i − i),
+// else computed as the day after the latest existing daily work.
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
@@ -24,10 +25,9 @@ import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curat
 export const config = { maxDuration: 60 };
 
 const SERIES = 'season1';
-const TIME_BUDGET_MS = 45_000;
-const CONCURRENCY = 3;
+const CORE_BUDGET_MS = 38_000; // leaves headroom: worst case one more ~10s core then return
+const AUDIO_BUDGET_MS = 32_000; // audio ~12s each; never start one that could exceed 60s
 const MEDIUM_FALLBACK: Record<string, string> = { 画: '绘画', 雕: '雕塑', 器: '器物' };
-
 const WIKI_UA = 'shenmei-daily/1.0 (https://shenmei-rich.vercel.app)';
 
 function addDaysISO(iso: string, days: number): string {
@@ -86,7 +86,8 @@ async function fetchWiki(lang: string, slug: string): Promise<{ image: string | 
 
 type BuildResult = { no: string; title: string; ok: boolean; errors: string[] };
 
-async function buildOne(
+// Phase 1: core content + image (NO audio).
+async function buildCore(
   supabase: SupabaseClient,
   w: SeasonWork,
   no: string,
@@ -148,37 +149,38 @@ async function buildOne(
     );
     if (r.error) errors.push(`vocabulary: ${r.error.message}`);
   }
-
-  // Audio (best-effort; if it comes back empty the daily self-heal can fill it
-  // the day this work is revealed).
-  const wantAudio = true;
-  if (wantAudio) {
-    const audio = await generateAudioScripts(input);
-    const rows: Array<{ work_id: string; t: number; text: string; order_index: number; voice: string }> = [];
-    for (const voice of VOICE_KEYS) {
-      (audio?.[voice] ?? []).forEach((l, i) => rows.push({ work_id: workId, t: l.t, text: l.text, order_index: i, voice }));
-    }
-    if (rows.length) {
-      const r = await supabase.from('audio_lines').insert(rows);
-      if (r.error) errors.push(`audio_lines: ${r.error.message}`);
-    }
-  }
-
   return { no, title: w.title, ok: true, errors };
 }
 
-function htmlPage(builtTotal: number, remaining: number, recent: BuildResult[]): string {
+// Phase 2: the three voice scripts for one already-built work.
+async function buildAudio(
+  supabase: SupabaseClient,
+  workId: string,
+  no: string,
+  w: SeasonWork,
+): Promise<BuildResult> {
+  const theme = WEEK_THEMES[w.week] ?? '';
+  const audio = await generateAudioScripts({ title: w.title, artist: w.artist, hint: theme });
+  const rows: Array<{ work_id: string; t: number; text: string; order_index: number; voice: string }> = [];
+  for (const voice of VOICE_KEYS) {
+    (audio?.[voice] ?? []).forEach((l, i) => rows.push({ work_id: workId, t: l.t, text: l.text, order_index: i, voice }));
+  }
+  if (!rows.length) return { no, title: w.title, ok: false, errors: ['audio: 生成为空'] };
+  const r = await supabase.from('audio_lines').insert(rows);
+  if (r.error) return { no, title: w.title, ok: false, errors: [`audio_lines: ${r.error.message}`] };
+  return { no, title: w.title, ok: true, errors: [] };
+}
+
+function htmlPage(label: string, builtTotal: number, total: number, remaining: number, recent: BuildResult[]): string {
   const done = remaining === 0;
   const refresh = done ? '' : '<meta http-equiv="refresh" content="2">';
-  const log = recent
-    .map((b) => `${b.no} ${b.title} ${b.ok ? '✓' : '✗ ' + b.errors.join('; ')}`)
-    .join('\n');
-  return `<!doctype html><html><head><meta charset="utf-8">${refresh}<title>第一季预生成</title></head>
+  const log = recent.map((b) => `${b.no} ${b.title} ${b.ok ? '✓' : '✗ ' + b.errors.join('; ')}`).join('\n');
+  return `<!doctype html><html><head><meta charset="utf-8">${refresh}<title>${label}</title></head>
 <body style="background:#0b0907;color:#e7c067;font-family:'Songti SC',serif;text-align:center;padding:56px 20px;line-height:1.8">
 <div style="font-size:13px;letter-spacing:.3em;color:#998c70">AESTHETIC DAILY · SEASON 1</div>
-<h1 style="font-weight:300;letter-spacing:.05em">第一季 · 内容预生成</h1>
-<div style="font-size:42px;color:#ffd166">${builtTotal} / ${SEASON1.length}</div>
-<p style="color:#d9c8a0">${done ? '✅ 全部就绪，可以关闭本页。' : '生成中…本页每 2 秒自动续跑，保持打开即可（约十几分钟）。'}</p>
+<h1 style="font-weight:300;letter-spacing:.05em">${label}</h1>
+<div style="font-size:42px;color:#ffd166">${builtTotal} / ${total}</div>
+<p style="color:#d9c8a0">${done ? '✅ 本阶段全部就绪。' : '生成中…本页每 2 秒自动续跑，保持打开即可。'}</p>
 <pre style="color:#8f8268;font-size:12px;text-align:left;max-width:560px;margin:24px auto;white-space:pre-wrap">${log || '正在启动…'}</pre>
 </body></html>`;
 }
@@ -197,8 +199,48 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? '', 'http://localhost');
   const auto = url.searchParams.get('auto') === '1';
+  const phase = url.searchParams.get('phase') === 'audio' ? 'audio' : 'core';
+  const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
+  const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
+  const started = Date.now();
+  const done: BuildResult[] = [];
 
-  // Load existing daily works (to recover the anchor + skip built season works).
+  // ── Phase 2: audio ───────────────────────────────────────────────────────
+  if (phase === 'audio') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, audio_lines:audio_lines(count)')
+      .eq('kind', 'daily')
+      .eq('series', SERIES);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    type Row = { id: string; no: string; title: string; audio_lines: Array<{ count: number }> };
+    const all = (rows ?? []) as Row[];
+    const missing = all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
+    for (const r of missing) {
+      if (Date.now() - started > AUDIO_BUDGET_MS) break;
+      const w = byTitle.get(r.title);
+      if (!w) continue;
+      done.push(await buildAudio(supabase, r.id, r.no, w));
+    }
+    const withAudioAfter = all.length - missing.length + done.filter((d) => d.ok).length;
+    const remaining = all.length - withAudioAfter;
+    if (auto) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(htmlPage('第一季 · 语音生成', withAudioAfter, all.length, remaining, done));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: true, phase, withAudio: withAudioAfter, totalBuilt: all.length, remaining, results: done }));
+    return;
+  }
+
+  // ── Phase 1: core + image ──────────────────────────────────────────────────
   const { data: dailyRows, error } = await supabase
     .from('works')
     .select('no, title, exhibited_on, series')
@@ -210,9 +252,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
   const rows = dailyRows ?? [];
-  const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
-
-  // Built season works (by our series tag) → skip set + anchor recovery.
   const builtSeason = rows.filter((r) => r.series === SERIES && titleIndex.has(r.title as string));
   const builtTitles = new Set(builtSeason.map((r) => r.title as string));
 
@@ -224,7 +263,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     startDate = addDaysISO(ref.exhibited_on as string, -idx);
     baseNo = (parseInt(ref.no as string, 10) || idx + 1) - idx;
   } else {
-    // Fresh: start the day after the latest existing daily work (or today).
     let maxDate = beijingTodayISO();
     let maxNo = 0;
     for (const r of rows) {
@@ -237,27 +275,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const todo = SEASON1.map((w, i) => ({ w, i })).filter(({ w }) => !builtTitles.has(w.title));
-
-  // Time-boxed, concurrent batch.
-  const started = Date.now();
-  const done: BuildResult[] = [];
-  let ptr = 0;
-  while (ptr < todo.length && Date.now() - started < TIME_BUDGET_MS) {
-    const chunk = todo.slice(ptr, ptr + CONCURRENCY);
-    ptr += CONCURRENCY;
-    const results = await Promise.all(
-      chunk.map(({ w, i }) => buildOne(supabase, w, pad(baseNo + i), addDaysISO(startDate, i))),
-    );
-    done.push(...results);
+  for (const { w, i } of todo) {
+    if (Date.now() - started > CORE_BUDGET_MS) break;
+    done.push(await buildCore(supabase, w, pad(baseNo + i), addDaysISO(startDate, i)));
   }
 
   const builtTotalAfter = builtSeason.length + done.filter((d) => d.ok).length;
   const remaining = SEASON1.length - builtTotalAfter;
-
   if (auto) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.end(htmlPage(builtTotalAfter, remaining, done));
+    res.end(htmlPage('第一季 · 内容预生成', builtTotalAfter, SEASON1.length, remaining, done));
     return;
   }
   res.statusCode = 200;
@@ -265,12 +293,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   res.end(
     JSON.stringify({
       ok: true,
+      phase,
       startDate,
       builtThisBatch: done.length,
       builtTotal: builtTotalAfter,
       remaining,
       results: done,
-      note: remaining > 0 ? '还有未生成的，请再次调用（或用 ?auto=1 自动跑完）。' : '第一季全部就绪。',
+      note:
+        remaining > 0
+          ? '内容还没生成完，请继续（或用 ?auto=1）。完成后再跑 ?auto=1&phase=audio 补语音。'
+          : '内容全部就绪，接着跑 ?auto=1&phase=audio 生成语音。',
     }),
   );
 }
