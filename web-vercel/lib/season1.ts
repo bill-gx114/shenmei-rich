@@ -74,7 +74,7 @@ export const SEASON1: SeasonWork[] = [
   { title: '大桥骤雨', artist: '歌川广重', slug: 'Sudden_Shower_over_Shin-Ōhashi_bridge_and_Atake', region: 'east', category: '画', week: 4 },
   // 第 5 周 · 空间与透视
   { title: '圣三位一体', artist: '马萨乔', slug: 'Holy_Trinity_(Masaccio)', region: 'west', category: '画', week: 5 },
-  { title: '理想城市', artist: '弗朗切斯卡派', slug: 'Ideal_City_(painting)', region: 'west', category: '画', week: 5 },
+  { title: '理想城市', artist: '弗朗切斯卡派', slug: 'Ideal_City', region: 'west', category: '画', week: 5 },
   { title: '宫娥', artist: '委拉斯开兹', slug: 'Las_Meninas', region: 'west', category: '画', week: 5 },
   { title: '鞭打基督', artist: '皮耶罗·德拉·弗朗切斯卡', slug: 'Flagellation_of_Christ_(Piero_della_Francesca)', region: 'west', category: '画', week: 5 },
   { title: '暴风雨', artist: '乔尔乔内', slug: 'The_Tempest_(Giorgione)', region: 'west', category: '画', week: 5 },
@@ -114,7 +114,7 @@ export const SEASON1: SeasonWork[] = [
   { title: '莲鹤方壶', artist: '春秋', slug: '莲鹤方壶', lang: 'zh', region: 'east', category: '器', week: 9 },
   // 第 10 周 · 叙事与场面
   { title: '1808年5月3日', artist: '戈雅', slug: 'The_Third_of_May_1808', region: 'west', category: '画', week: 10 },
-  { title: '草地上的午餐', artist: '马奈', slug: 'Le_déjeuner_sur_l’herbe', region: 'west', category: '画', week: 10 },
+  { title: '草地上的午餐', artist: '马奈', slug: "Le_Déjeuner_sur_l'herbe", region: 'west', category: '画', week: 10 },
   { title: '奥南的葬礼', artist: '库尔贝', slug: 'A_Burial_at_Ornans', region: 'west', category: '画', week: 10 },
   { title: '内战的预感', artist: '达利', slug: 'Soft_Construction_with_Boiled_Beans', region: 'west', category: '画', week: 10 },
   { title: '战争', artist: '亨利·卢梭', slug: 'War_(Rousseau)', region: 'west', category: '画', week: 10 },
@@ -130,7 +130,7 @@ export const SEASON1: SeasonWork[] = [
   { title: '维尔图诺斯', artist: '阿尔钦博托', slug: 'Vertumnus_(Arcimboldo)', region: 'west', category: '画', week: 11 },
   // 第 12 周 · 现代性
   { title: '黑方块', artist: '马列维奇', slug: 'Black_Square_(painting)', region: 'west', category: '画', week: 12 },
-  { title: '构成第八号', artist: '康定斯基', slug: 'Composition_VIII_(Kandinsky)', region: 'west', category: '画', week: 12 },
+  { title: '构成第八号', artist: '康定斯基', slug: 'Composition_VIII', region: 'west', category: '画', week: 12 },
   { title: '空间中连续的形', artist: '波丘尼', slug: 'Unique_Forms_of_Continuity_in_Space', region: 'west', category: '雕', week: 12 },
   { title: '泉', artist: '杜尚', slug: 'Fountain_(Duchamp)', region: 'west', category: '器', week: 12 },
   { title: '下楼梯的裸女2号', artist: '杜尚', slug: 'Nude_Descending_a_Staircase,_No._2', region: 'west', category: '画', week: 12 },
@@ -142,6 +142,6 @@ export const SEASON1: SeasonWork[] = [
   { title: '圣维克多山', artist: '塞尚', slug: 'Mont_Sainte-Victoire_(Cézanne)', region: 'west', category: '画', week: 13 },
   { title: '玩纸牌者', artist: '塞尚', slug: 'The_Card_Players', region: 'west', category: '画', week: 13 },
   { title: '我们从何处来？我们是谁？我们往何处去？', artist: '高更', slug: 'Where_Do_We_Come_From?_What_Are_We?_Where_Are_We_Going?', region: 'west', category: '画', week: 13 },
-  { title: '生命之舞', artist: '蒙克', slug: 'The_Dance_of_Life', region: 'west', category: '画', week: 13 },
+  { title: '生命之舞', artist: '蒙克', slug: 'The_Dance_of_Life_(Munch)', region: 'west', category: '画', week: 13 },
   { title: '两个弗里达', artist: '弗里达·卡罗', slug: 'The_Two_Fridas', region: 'west', category: '画', week: 13 },
 ];

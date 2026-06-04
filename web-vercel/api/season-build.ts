@@ -60,6 +60,41 @@ async function pageImage(lang: string, title: string): Promise<string | null> {
   }
 }
 
+// Search a Wikipedia for a title, return the first matching article slug.
+async function searchSlug(lang: string, query: string): Promise<string | null> {
+  try {
+    const u = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(query)}`;
+    const r = await fetch(u, { headers: { 'User-Agent': WIKI_UA } });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+    const t = d.query?.search?.[0]?.title;
+    return t ? t.replace(/ /g, '_') : null;
+  } catch {
+    return null;
+  }
+}
+
+// Robust image resolution: exact slug → search on its own lang → search the
+// other lang. (Chinese paintings often resolve only via a zh-title search; a
+// retry also rescues transient failures from the generation burst.)
+async function resolveImage(w: SeasonWork): Promise<string | null> {
+  const own = w.lang ?? 'en';
+  const other = own === 'zh' ? 'en' : 'zh';
+  const direct = await fetchWiki(own, w.slug);
+  if (direct.image) return direct.image;
+  for (const [lang, query] of [
+    [own, w.title],
+    [own, `${w.title} ${w.artist}`],
+    [other, w.title],
+  ] as Array<[string, string]>) {
+    const slug = await searchSlug(lang, query);
+    if (!slug) continue;
+    const { image } = await fetchWiki(lang, slug);
+    if (image) return image;
+  }
+  return null;
+}
+
 async function fetchWiki(lang: string, slug: string): Promise<{ image: string | null; extract: string }> {
   let image: string | null = null;
   let extract = '';
@@ -199,11 +234,52 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? '', 'http://localhost');
   const auto = url.searchParams.get('auto') === '1';
-  const phase = url.searchParams.get('phase') === 'audio' ? 'audio' : 'core';
+  const phaseParam = url.searchParams.get('phase');
+  const phase = phaseParam === 'audio' ? 'audio' : phaseParam === 'images' ? 'images' : 'core';
   const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
   const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
   const started = Date.now();
   const done: BuildResult[] = [];
+
+  // ── Image repair: fill image_path for season works missing it ──────────────
+  if (phase === 'images') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, image_path')
+      .eq('kind', 'daily')
+      .eq('series', SERIES);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    const all = (rows ?? []) as Array<{ id: string; no: string; title: string; image_path: string | null }>;
+    const missing = all.filter((r) => !r.image_path);
+    for (const r of missing) {
+      if (Date.now() - started > CORE_BUDGET_MS) break;
+      const w = byTitle.get(r.title);
+      if (!w) continue;
+      const image = await resolveImage(w);
+      if (image) {
+        await supabase.from('works').update({ image_path: image }).eq('id', r.id);
+        done.push({ no: r.no, title: r.title, ok: true, errors: [] });
+      } else {
+        done.push({ no: r.no, title: r.title, ok: false, errors: ['无可用图'] });
+      }
+    }
+    const withImageAfter = all.length - missing.length + done.filter((d) => d.ok).length;
+    const remaining = all.length - withImageAfter;
+    if (auto) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(htmlPage('第一季 · 补图', withImageAfter, all.length, remaining, done));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: true, phase, withImage: withImageAfter, totalBuilt: all.length, remaining, stillEmpty: done.filter((d) => !d.ok).map((d) => d.no + ' ' + d.title), results: done }));
+    return;
+  }
 
   // ── Phase 2: audio ───────────────────────────────────────────────────────
   if (phase === 'audio') {
