@@ -249,7 +249,7 @@ export default function RoamPage() {
     world.controls().autoRotateSpeed = 0.32;
     world.controls().enableZoom = true;
     world.controls().minDistance = 180;
-    world.pointOfView({ lat: 22, lng: 35, altitude: 2.5 }, 0);
+    world.pointOfView({ lat: 22, lng: 18, altitude: 2.1 }, 0);
     globeRef.current = world;
 
     const sizeToBox = () => {
@@ -319,7 +319,7 @@ export default function RoamPage() {
         <div className="roam-eyebrow">GLOBAL ROAMING · 全球漫游</div>
         <h1 className="roam-title">在地球上漫游名作</h1>
         <p className="roam-sub">
-          旋转地球：金蓝绿点是精选世界名作，浅金点是你日课走过的地方，今日那件在发光。点亮任意一处，读懂它为何成立——喜欢的，收入你的馆藏。
+          金蓝绿点是世界名作，浅金是你日课走过的地方，今日那件在发光——转动地球或从右侧名录点选，即可细看与收藏。
         </p>
         <div className="roam-legend">
           {Object.entries(CATEGORY_COLOR).map(([k, v]) => (

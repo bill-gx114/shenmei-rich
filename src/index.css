@@ -1945,24 +1945,27 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ── 全球漫游 (Global Roaming) ─────────────────────────────────────────── */
-.roam-root { padding: 18px clamp(16px, 4vw, 56px) 28px; }
-.roam-head { margin: 0 0 12px; text-align: left; }
+.roam-root { max-width: 1320px; margin: 0 auto; padding: 44px 40px 48px; }
+.roam-head {
+  margin: 0 0 16px; text-align: left;
+  border-bottom: 1px solid var(--line); padding-bottom: 18px;
+}
 .roam-eyebrow {
   font-family: var(--display); font-style: italic; color: var(--gold);
-  letter-spacing: 0.32em; text-transform: uppercase; font-size: 12px; margin-bottom: 8px;
+  letter-spacing: 0.32em; text-transform: uppercase; font-size: 14px; margin-bottom: 12px;
 }
 .roam-title {
-  font-family: var(--serif); font-weight: 300; font-size: clamp(24px, 3.2vw, 32px);
-  margin: 0 0 8px; letter-spacing: 0.04em;
+  font-family: var(--serif); font-weight: 300; font-size: clamp(34px, 4.2vw, 48px);
+  margin: 0 0 12px; letter-spacing: 0.04em; line-height: 1.1; color: var(--ink);
 }
-.roam-sub { color: var(--ink-3); font-family: var(--serif); font-size: 14px; line-height: 1.7; margin: 0; max-width: 720px; }
-.roam-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: flex-start; margin-top: 12px; }
+.roam-sub { color: var(--ink-3); font-family: var(--serif); font-size: 14px; line-height: 1.7; margin: 0; max-width: 760px; }
+.roam-legend { display: flex; flex-wrap: wrap; gap: 16px; justify-content: flex-start; margin-top: 14px; }
 .roam-legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-3); font-size: 12px; letter-spacing: 0.06em; }
 .roam-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; }
 
 .roam-stage {
-  display: flex; margin: 14px 0 0; max-width: 1180px;
-  height: min(58vh, 560px); min-height: 360px;
+  display: flex; margin: 16px 0 0; width: 100%;
+  height: min(56vh, 540px); min-height: 360px;
   border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden;
   background: radial-gradient(120% 120% at 38% -10%, #100b16, #07060a 70%);
 }
