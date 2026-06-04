@@ -74,9 +74,29 @@ async function searchSlug(lang: string, query: string): Promise<string | null> {
   }
 }
 
-// Robust image resolution: exact slug → search on its own lang → search the
-// other lang. (Chinese paintings often resolve only via a zh-title search; a
-// retry also rescues transient failures from the generation burst.)
+// Last-resort: search Wikimedia Commons' File namespace directly and return a
+// stable Special:FilePath link to the first image file found.
+async function commonsFile(query: string): Promise<string | null> {
+  try {
+    const u = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srnamespace=6&srlimit=5&format=json&origin=*&srsearch=${encodeURIComponent(query)}`;
+    const r = await fetch(u, { headers: { 'User-Agent': WIKI_UA } });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+    for (const hit of d.query?.search ?? []) {
+      const name = hit.title.replace(/^File:/, '');
+      if (/\.(jpe?g|png|tiff?|webp)$/i.test(name)) {
+        return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(name)}?width=1600`;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Robust image resolution: exact slug → English article → search on its own lang
+// → search the other lang → Commons file search. (Chinese paintings often
+// resolve only via a zh search or Commons; retries also rescue transient fails.)
 async function resolveImage(w: SeasonWork): Promise<string | null> {
   const own = w.lang ?? 'en';
   const other = own === 'zh' ? 'en' : 'zh';
@@ -101,6 +121,12 @@ async function resolveImage(w: SeasonWork): Promise<string | null> {
     if (!slug) continue;
     const { image } = await fetchWiki(lang, slug);
     if (image) return image;
+  }
+  // Final fallback: Wikimedia Commons file search (en title, then Chinese title).
+  for (const q of [w.en?.replace(/_/g, ' '), `${w.title} ${w.artist}`, w.title]) {
+    if (!q) continue;
+    const img = await commonsFile(q);
+    if (img) return img;
   }
   return null;
 }
