@@ -54,6 +54,10 @@ const CORE_SYSTEM_PROMPT = `${STYLE_BASE}
 你将收到一件作品的标题、作者，以及一句话的感觉。返回**严格 JSON**，结构如下：
 
 {
+  "year": "年代（若背景资料里有，请据实填，如 \"1889\" 或 \"北宋\"；不确定就给空字符串，绝不编造）",
+  "medium": "媒材（据实，如 \"布面油画\"/\"绢本设色\"/\"青铜\"/\"湿壁画\"；不确定给空字符串）",
+  "location": "现藏地（据实，如 \"巴黎卢浮宫\"/\"北京故宫博物院\"；不确定给空字符串）",
+
   "shortLabel": "一句话墙签（25-40 字），讲清这幅作品在做什么、靠什么成立",
 
   "curatorNote": "策展人留言（60-100 字），第一人称、口语、像跟朋友说话。**必须针对当前这一幅作品**——抓住它的一个具体处理（构图/色彩/光/质感/视线/某个细节），给出'今晚做一件事'式的可复用动作。允许用引号、破折号。避免空泛的形容词。",
@@ -71,7 +75,7 @@ const CORE_SYSTEM_PROMPT = `${STYLE_BASE}
   ]    // 3-5 个该作品贡献的词
 }
 
-只输出 JSON，不要任何解释或 markdown 代码块标记。所有字段都必须有内容，不允许留空数组。`;
+只输出 JSON，不要任何解释或 markdown 代码块标记。除 year/medium/location 三个事实字段允许在不确定时留空字符串外，其余字段都必须有内容，不允许留空数组。`;
 
 // `lines` lets the retry ask for a SHORTER script — a long response is the main
 // cause of truncation/timeout on the audio call, so the 2nd attempt degrades to
@@ -164,7 +168,14 @@ async function callDeepSeek<T>(
 export type CorePack = Pick<
   CuratorPack,
   'shortLabel' | 'curatorNote' | 'hotspots' | 'questions' | 'vocabulary'
->;
+> & {
+  /** Factual metadata the model fills from the grounding context (may be empty
+   *  when no context is given or the fact is unknown). Used by the season
+   *  pre-builder; daily-curator ignores these (it has its own seed metadata). */
+  year?: string;
+  medium?: string;
+  location?: string;
+};
 
 /** Coerce / fill the three voice variants, falling back across them. */
 function normalizeAudio(raw: unknown): Record<VoiceKey, AudioLine[]> {

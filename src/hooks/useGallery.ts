@@ -222,6 +222,8 @@ async function fetchArchive(): Promise<ArchiveWork[]> {
       .from('works')
       .select('id, no, exhibited_on, title, artist, image_path, short_label, region')
       .eq('kind', 'daily')
+      // Season works are pre-seeded with FUTURE dates; never reveal them early.
+      .lte('exhibited_on', todayISO())
       .order('exhibited_on', { ascending: false }),
     supabase.from('user_pins').select('work_id'),
   ]);
@@ -357,6 +359,9 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
     )
     .in('kind', ['roam', 'daily'])
     .not('lat', 'is', null)
+    // Don't plot daily works whose reveal date is still in the future. (roam
+    // works use a 2000-01-01 sentinel, so they always pass.)
+    .lte('exhibited_on', todayISO())
     .order('no', { ascending: true });
   if (error) throw error;
   type Row = {
