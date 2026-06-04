@@ -59,7 +59,17 @@ export const MUSEUMS: Museum[] = [
   { keys: ['中国国家博物馆', '国家博物馆'], lat: 39.9055, lng: 116.3976 },
   { keys: ['河南博物院', '河南'], lat: 34.7657, lng: 113.6655 },
   { keys: ['浙江省博物馆', '浙江'], lat: 30.2562, lng: 120.1536 },
+  { keys: ['中国美术馆'], lat: 39.925, lng: 116.4073 },
+  { keys: ['大德寺', '京都'], lat: 35.0429, lng: 135.7456 },
   { keys: ['故宫'], lat: 39.9163, lng: 116.3972 }, // generic 故宫 fallback (after Taipei)
+  // ── city-level fallbacks (placed LAST so specific museums win) ────────────
+  { keys: ['凡尔赛'], lat: 48.8049, lng: 2.1204 },
+  { keys: ['佛罗伦萨', '新圣母'], lat: 43.7731, lng: 11.2497 },
+  { keys: ['克拉科夫', '恰尔托雷斯基'], lat: 50.0625, lng: 19.9416 },
+  { keys: ['斯德哥尔摩'], lat: 59.3293, lng: 18.0686 },
+  { keys: ['特列季亚科夫', '莫斯科'], lat: 55.7415, lng: 37.6208 },
+  { keys: ['波士顿'], lat: 42.3394, lng: -71.0938 },
+  { keys: ['罗马'], lat: 41.9028, lng: 12.4964 }, // catches the Rome churches
 ];
 
 /** Find coordinates for a location string by keyword match. */

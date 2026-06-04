@@ -43,6 +43,14 @@ export const SEED_COORDS: Record<string, { lat: number; lng: number }> = {
   洛神赋图: { lat: 39.9163, lng: 116.3972 },
   The_Treachery_of_Images: { lat: 34.0639, lng: -118.3592 }, // LACMA
   Las_Meninas: { lat: 40.4138, lng: -3.6921 }, // 普拉多
+  // Season works whose AI `location` was empty but have a clear home (keyed by
+  // Chinese title; coordsForSeed checks the title too).
+  万神殿内景: { lat: 41.8986, lng: 12.4769 }, // 罗马万神殿
+  大桥骤雨: { lat: 35.6762, lng: 139.6503 }, // 江户/东京
+  玩纸牌者: { lat: 48.86, lng: 2.3266 }, // 奥赛
+  内战的预感: { lat: 39.9656, lng: -75.181 }, // 费城艺术博物馆
+  空间中连续的形: { lat: 40.7614, lng: -73.9776 }, // MoMA
+  '自画像（两圆）': { lat: 51.5717, lng: -0.1676 }, // 伦敦肯伍德府
 };
 
 const titleToSlug = new Map(SEED_WORKS.map((s) => [s.title, s.wikipediaSlug]));
