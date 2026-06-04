@@ -25,6 +25,7 @@ import { SEED_WORKS, type SeedWork } from '../lib/seed-works.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { coordsForSeed } from '../lib/seedCoords.js';
+import { coordsForLocation } from '../lib/museums.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -298,7 +299,7 @@ export default async (req: Request) => {
   if (url.searchParams.get('coords') === '1') {
     const { data: rows, error } = await supabase
       .from('works')
-      .select('id, no, title, lat')
+      .select('id, no, title, lat, location')
       .eq('kind', 'daily')
       .is('owner_id', null);
     if (error) return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
@@ -306,15 +307,17 @@ export default async (req: Request) => {
     const unmatched: string[] = [];
     for (const w of rows ?? []) {
       if (w.lat != null) continue; // already has coordinates
-      const c = coordsForSeed(null, w.title as string);
+      // Title-based seed map first, then the museum gazetteer on the AI-filled
+      // `location` (covers the 91 season works without hand-tagging).
+      const c = coordsForSeed(null, w.title as string) ?? coordsForLocation(w.location as string);
       if (!c) {
-        unmatched.push(w.title as string);
+        unmatched.push(`${w.title}${w.location ? ' @ ' + w.location : ''}`);
         continue;
       }
       await supabase.from('works').update({ lat: c.lat, lng: c.lng }).eq('id', w.id);
       fixed.push(w.title as string);
     }
-    return jsonResponse(200, { ok: true, mode: 'coords', fixed, unmatched });
+    return jsonResponse(200, { ok: true, mode: 'coords', fixedCount: fixed.length, fixed, unmatched });
   }
 
   const today = beijingTodayISO();
