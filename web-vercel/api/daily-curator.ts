@@ -330,11 +330,19 @@ export default async (req: Request) => {
       .eq('kind', 'daily')
       .is('owner_id', null);
     if (error) return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
+    // Fallback map from the seed_works TABLE (covers DB-only seeds added by
+    // extend-seed that aren't in the in-code lists, e.g. 拿破仑越过阿尔卑斯山).
+    const { data: seeds } = await supabase
+      .from('seed_works')
+      .select('title, wikipedia_slug, wikipedia_lang');
+    const tableMap = new Map(
+      (seeds ?? []).map((s) => [s.title as string, wikiUrl(s.wikipedia_lang as string, s.wikipedia_slug as string)]),
+    );
     const fixed: string[] = [];
     const unmatched: string[] = [];
     for (const w of rows ?? []) {
       if (w.source_url) continue;
-      const u = dailySourceUrl(w.title as string);
+      const u = dailySourceUrl(w.title as string) ?? tableMap.get(w.title as string) ?? null;
       if (!u) {
         unmatched.push(w.title as string);
         continue;
