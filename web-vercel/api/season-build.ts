@@ -230,18 +230,19 @@ async function buildAudio(
   supabase: SupabaseClient,
   workId: string,
   no: string,
-  w: SeasonWork,
+  title: string,
+  artist: string,
+  hint: string | undefined,
 ): Promise<BuildResult> {
-  const theme = WEEK_THEMES[w.week] ?? '';
-  const audio = await generateAudioScripts({ title: w.title, artist: w.artist, hint: theme });
+  const audio = await generateAudioScripts({ title, artist, hint });
   const rows: Array<{ work_id: string; t: number; text: string; order_index: number; voice: string }> = [];
   for (const voice of VOICE_KEYS) {
     (audio?.[voice] ?? []).forEach((l, i) => rows.push({ work_id: workId, t: l.t, text: l.text, order_index: i, voice }));
   }
-  if (!rows.length) return { no, title: w.title, ok: false, errors: ['audio: 生成为空'] };
+  if (!rows.length) return { no, title, ok: false, errors: ['audio: 生成为空'] };
   const r = await supabase.from('audio_lines').insert(rows);
-  if (r.error) return { no, title: w.title, ok: false, errors: [`audio_lines: ${r.error.message}`] };
-  return { no, title: w.title, ok: true, errors: [] };
+  if (r.error) return { no, title, ok: false, errors: [`audio_lines: ${r.error.message}`] };
+  return { no, title, ok: true, errors: [] };
 }
 
 function htmlPage(label: string, builtTotal: number, total: number, remaining: number, recent: BuildResult[]): string {
@@ -319,38 +320,63 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  // ── Phase 2: audio ───────────────────────────────────────────────────────
+  // ── Phase 2: audio (all daily works, old + season) ─────────────────────────
+  // To REGENERATE with a changed prompt: ?phase=audio&reset=1 clears existing
+  // audio (fast, no AI), then ?phase=audio&auto=1 refills (idempotent, stops at
+  // full). ?only=<no> regenerates a single work (force-deletes first) for sampling.
   if (phase === 'audio') {
+    const reset = url.searchParams.get('reset') === '1';
+    const only = url.searchParams.get('only');
     const { data: rows, error } = await supabase
       .from('works')
-      .select('id, no, title, audio_lines:audio_lines(count)')
+      .select('id, no, title, artist, short_label, audio_lines:audio_lines(count)')
       .eq('kind', 'daily')
-      .eq('series', SERIES);
+      .is('owner_id', null);
     if (error) {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
       return;
     }
-    type Row = { id: string; no: string; title: string; audio_lines: Array<{ count: number }> };
+    type Row = {
+      id: string; no: string; title: string; artist: string;
+      short_label: string | null; audio_lines: Array<{ count: number }>;
+    };
     const all = (rows ?? []) as Row[];
-    const missing = all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
-    for (const r of missing) {
-      if (Date.now() - started > AUDIO_BUDGET_MS) break;
-      const w = byTitle.get(r.title);
-      if (!w) continue;
-      done.push(await buildAudio(supabase, r.id, r.no, w));
+
+    // reset: wipe audio so the subsequent fill regenerates everything.
+    if (reset) {
+      const ids = (only ? all.filter((r) => r.no === only) : all).map((r) => r.id);
+      if (ids.length) await supabase.from('audio_lines').delete().in('work_id', ids);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({ ok: true, mode: 'audio-reset', cleared: ids.length }));
+      return;
     }
-    const withAudioAfter = all.length - missing.length + done.filter((d) => d.ok).length;
-    const remaining = all.length - withAudioAfter;
+
+    const hintFor = (r: Row) => {
+      const sw = byTitle.get(r.title);
+      return sw ? WEEK_THEMES[sw.week] : r.short_label ?? undefined;
+    };
+    const targets = only
+      ? all.filter((r) => r.no === only)
+      : all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
+    for (const r of targets) {
+      if (!only && Date.now() - started > AUDIO_BUDGET_MS) break;
+      if (only) await supabase.from('audio_lines').delete().eq('work_id', r.id); // force re-sample
+      done.push(await buildAudio(supabase, r.id, r.no, r.title, r.artist, hintFor(r)));
+    }
+    const missingCount = all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0).length;
+    const withAudioAfter = all.length - missingCount + done.filter((d) => d.ok).length;
+    const remaining = only ? 0 : all.length - withAudioAfter;
     if (auto) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.end(htmlPage('第一季 · 语音生成', withAudioAfter, all.length, remaining, done));
+      res.end(htmlPage('日课 · 语音重写', withAudioAfter, all.length, remaining, done));
       return;
     }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ ok: true, phase, withAudio: withAudioAfter, totalBuilt: all.length, remaining, results: done }));
+    res.end(JSON.stringify({ ok: true, phase, withAudio: withAudioAfter, total: all.length, remaining, results: done }));
     return;
   }
 

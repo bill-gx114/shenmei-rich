@@ -225,6 +225,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   // (roam was seeded without audio). Time-boxed; ?auto=1 self-refreshes.
   if (url.searchParams.get('audio') === '1') {
     const auto = url.searchParams.get('auto') === '1';
+    const reset = url.searchParams.get('reset') === '1';
+    const onlyAudio = url.searchParams.get('only');
     const { data: rows, error } = await supabase
       .from('works')
       .select('id, no, title, artist, audio_lines:audio_lines(count)')
@@ -233,12 +235,21 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     type Row = { id: string; no: string; title: string; artist: string; audio_lines: Array<{ count: number }> };
     const all = (rows ?? []) as Row[];
     const seedByNo = new Map(ROAM_SEEDS.map((s) => [s.no, s]));
-    const missing = all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
+    // reset: wipe roam audio so the next fill regenerates with the new prompt.
+    if (reset) {
+      const ids = (onlyAudio ? all.filter((r) => r.no === onlyAudio) : all).map((r) => r.id);
+      if (ids.length) await supabase.from('audio_lines').delete().in('work_id', ids);
+      return sendJson(res, 200, { ok: true, mode: 'audio-reset', cleared: ids.length });
+    }
+    const missing = onlyAudio
+      ? all.filter((r) => r.no === onlyAudio)
+      : all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
     const started = Date.now();
     const log: string[] = [];
     let madeOk = 0;
     for (const r of missing) {
-      if (Date.now() - started > AUDIO_BUDGET_MS) break;
+      if (!onlyAudio && Date.now() - started > AUDIO_BUDGET_MS) break;
+      if (onlyAudio) await supabase.from('audio_lines').delete().eq('work_id', r.id); // force re-sample
       const seed = seedByNo.get(r.no);
       const audio = await generateAudioScripts({ title: r.title, artist: r.artist, hint: seed?.hint });
       const lines: Array<{ work_id: string; t: number; text: string; order_index: number; voice: string }> = [];

@@ -259,23 +259,6 @@ export function TodayPage({
               voiceName={tweaks.voiceName}
             />
           )}
-          {(() => {
-            const variants = work.audioGuide?.variants ?? {};
-            const lines =
-              variants[tweaks.narratorVoice] ?? variants['清·克制'] ?? Object.values(variants)[0] ?? [];
-            return lines.length ? (
-              <details className="transcript">
-                <summary>
-                  导览文字稿 <span>· {tweaks.narratorVoice}</span>
-                </summary>
-                <div className="transcript-body">
-                  {lines.map((l, i) => (
-                    <p key={i}>{l.text}</p>
-                  ))}
-                </div>
-              </details>
-            ) : null;
-          })()}
           {work.sourceUrl && (
             <div className="ext-links">
               <span className="ext-links-h">延伸阅读</span>
