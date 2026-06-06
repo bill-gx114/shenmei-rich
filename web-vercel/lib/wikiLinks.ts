@@ -15,6 +15,14 @@ const dailyByTitle = new Map<string, string>();
 for (const w of SEED_WORKS) dailyByTitle.set(w.title, wikiUrl(w.wikipediaLang, w.wikipediaSlug));
 for (const w of SEASON1) dailyByTitle.set(w.title, wikiUrl(w.lang ?? 'en', w.slug)); // season wins on conflict
 
+// Manual entries for DB-only rotation seeds not present in the in-code lists.
+const EXTRA_DAILY: Record<string, [string, string]> = {
+  拿破仑越过阿尔卑斯山: ['en', 'Napoleon_Crossing_the_Alps'],
+};
+for (const [title, [lang, slug]] of Object.entries(EXTRA_DAILY)) {
+  if (!dailyByTitle.has(title)) dailyByTitle.set(title, wikiUrl(lang, slug));
+}
+
 export function dailySourceUrl(title: string): string | null {
   return dailyByTitle.get(title) ?? null;
 }
