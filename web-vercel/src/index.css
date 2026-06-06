@@ -2099,3 +2099,20 @@ button { font-family: inherit; cursor: pointer; }
   transition: color 0.15s, border-color 0.15s;
 }
 .ext-links a:hover { color: var(--gold); border-color: var(--gold); }
+
+/* 导览文字稿 (readable transcript of the audio guide) */
+.transcript { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.transcript summary {
+  cursor: pointer; list-style: none; outline: none;
+  font-family: var(--display); font-style: italic; color: var(--gold);
+  letter-spacing: 0.2em; text-transform: uppercase; font-size: 11px;
+  display: flex; align-items: center; gap: 8px;
+}
+.transcript summary::-webkit-details-marker { display: none; }
+.transcript summary::after { content: '▾'; color: var(--ink-4); font-style: normal; margin-left: auto; }
+.transcript[open] summary::after { content: '▴'; }
+.transcript summary span { color: var(--ink-4); letter-spacing: 0.06em; text-transform: none; font-size: 11px; }
+.transcript-body { margin-top: 12px; }
+.transcript-body p {
+  font-family: var(--serif); color: var(--ink-2); font-size: 14px; line-height: 1.85; margin: 0 0 10px;
+}
