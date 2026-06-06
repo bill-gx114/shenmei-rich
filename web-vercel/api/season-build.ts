@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
+import { wikiUrl } from '../lib/wikiLinks.js';
 
 export const config = { maxDuration: 60 };
 
@@ -195,6 +196,7 @@ async function buildCore(
       short_label: core.shortLabel,
       curator_note: core.curatorNote ?? null,
       image_path: image,
+      source_url: wikiUrl(w.lang ?? 'en', w.slug),
       total: 365,
     })
     .select('id')

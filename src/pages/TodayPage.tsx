@@ -259,6 +259,23 @@ export function TodayPage({
               voiceName={tweaks.voiceName}
             />
           )}
+          <div className="ext-links">
+            <span className="ext-links-h">延伸阅读</span>
+            {work.sourceUrl && (
+              <a href={work.sourceUrl} target="_blank" rel="noopener noreferrer">
+                维基百科 ↗
+              </a>
+            )}
+            <a
+              href={`https://artsandculture.google.com/search?q=${encodeURIComponent(
+                `${work.title} ${work.artist}`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google Arts ↗
+            </a>
+          </div>
         </div>
       </div>
 

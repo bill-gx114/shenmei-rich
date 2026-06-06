@@ -420,6 +420,23 @@ export default function RoamPage({ onCollectChange }: { onCollectChange?: () => 
                   ))}
                 </div>
               )}
+              <div className="ext-links">
+                <span className="ext-links-h">延伸阅读</span>
+                {selected.sourceUrl && (
+                  <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">
+                    维基百科 ↗
+                  </a>
+                )}
+                <a
+                  href={`https://artsandculture.google.com/search?q=${encodeURIComponent(
+                    `${selected.title} ${selected.artist}`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Google Arts ↗
+                </a>
+              </div>
               <div className="roam-actions">
                 <button
                   className={isCollected ? 'roam-btn roam-btn-on' : 'roam-btn'}

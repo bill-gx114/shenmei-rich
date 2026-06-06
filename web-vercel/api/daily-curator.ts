@@ -26,6 +26,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { coordsForSeed } from '../lib/seedCoords.js';
 import { coordsForLocation } from '../lib/museums.js';
+import { wikiUrl, dailySourceUrl } from '../lib/wikiLinks.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -320,6 +321,30 @@ export default async (req: Request) => {
     return jsonResponse(200, { ok: true, mode: 'coords', fixedCount: fixed.length, fixed, unmatched });
   }
 
+  // `?source=1` — backfill the Wikipedia "deeper reading" link on daily/season
+  // works (matched by title). No AI calls.
+  if (url.searchParams.get('source') === '1') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, title, source_url')
+      .eq('kind', 'daily')
+      .is('owner_id', null);
+    if (error) return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
+    const fixed: string[] = [];
+    const unmatched: string[] = [];
+    for (const w of rows ?? []) {
+      if (w.source_url) continue;
+      const u = dailySourceUrl(w.title as string);
+      if (!u) {
+        unmatched.push(w.title as string);
+        continue;
+      }
+      await supabase.from('works').update({ source_url: u }).eq('id', w.id);
+      fixed.push(w.title as string);
+    }
+    return jsonResponse(200, { ok: true, mode: 'source', fixedCount: fixed.length, unmatched });
+  }
+
   const today = beijingTodayISO();
 
   // 1. Idempotency: already published today?
@@ -415,6 +440,7 @@ export default async (req: Request) => {
       short_label: core.shortLabel,
       curator_note: core.curatorNote ?? null,
       image_path: imageUrl,
+      source_url: wikiUrl(seed.wikipediaLang, seed.wikipediaSlug),
       total: 365,
     })
     .select('id')

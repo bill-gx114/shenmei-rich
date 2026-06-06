@@ -34,6 +34,8 @@ export type Work = {
   shortLabel: string;
   /** Per-work curator note shown next to the notebook. Null for older works. */
   curatorNote?: string | null;
+  /** Authoritative "deeper reading" link (its Wikipedia article). */
+  sourceUrl?: string | null;
   image: string;
   hotspots: Hotspot[];
   audioGuide: AudioGuideData;
@@ -79,6 +81,8 @@ export type RoamPlace = {
   curatorNote: string;
   /** Observation points (reused from hotspots) shown as "怎么看" bullets. */
   points: { label: string; detail: string }[];
+  /** Authoritative "deeper reading" link (its Wikipedia article). */
+  sourceUrl?: string;
   /** 'roam' = curated landmark (base layer); 'daily' = a daily work you've seen. */
   kind: 'roam' | 'daily';
   /** For daily works — the date it was on display (used to flag "today"). */

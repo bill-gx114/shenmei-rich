@@ -20,6 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ROAM_SEEDS, type RoamSeed } from '../lib/roamSeed.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
+import { wikiUrl, roamSourceUrl } from '../lib/wikiLinks.js';
 
 export const config = { maxDuration: 60 };
 const AUDIO_BUDGET_MS = 32_000;
@@ -140,6 +141,7 @@ async function seedOne(
       short_label: core.shortLabel,
       curator_note: core.curatorNote ?? null,
       image_path: image,
+      source_url: wikiUrl(seed.wiki.lang, seed.wiki.title),
       total: ROAM_SEEDS.length,
     })
     .select('id')
@@ -196,6 +198,28 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const url = new URL(req.url ?? '', 'http://localhost');
   const only = url.searchParams.get('only');
+
+  // ?source=1 — backfill the Wikipedia "deeper reading" link on roam works.
+  if (url.searchParams.get('source') === '1') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, source_url')
+      .eq('kind', 'roam');
+    if (error) return sendJson(res, 500, { error: '查询失败', detail: error.message });
+    let fixed = 0;
+    const unmatched: string[] = [];
+    for (const r of rows ?? []) {
+      if (r.source_url) continue;
+      const u = roamSourceUrl(r.no as string);
+      if (!u) {
+        unmatched.push(r.no as string);
+        continue;
+      }
+      await supabase.from('works').update({ source_url: u }).eq('id', r.id);
+      fixed++;
+    }
+    return sendJson(res, 200, { ok: true, mode: 'source', fixed, unmatched });
+  }
 
   // ?audio=1 — generate the three voice scripts for roam landmarks missing them
   // (roam was seeded without audio). Time-boxed; ?auto=1 self-refreshes.

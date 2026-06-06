@@ -2086,3 +2086,16 @@ button { font-family: inherit; cursor: pointer; }
 }
 .roam-lock-date { font-family: var(--serif); font-size: 30px; color: var(--gold); letter-spacing: 0.04em; margin-bottom: 14px; }
 .roam-lock-hint { font-family: var(--serif); color: var(--ink-3); font-size: 13.5px; line-height: 1.85; margin: 0 auto; max-width: 280px; }
+
+/* 延伸阅读 · authoritative external links (work view + roam panel) */
+.ext-links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.ext-links-h {
+  font-family: var(--display); font-style: italic; color: var(--ink-4);
+  letter-spacing: 0.2em; text-transform: uppercase; font-size: 11px;
+}
+.ext-links a {
+  font-family: var(--serif); font-size: 12.5px; color: var(--ink-2); text-decoration: none;
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 12px; letter-spacing: 0.04em;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ext-links a:hover { color: var(--gold); border-color: var(--gold); }

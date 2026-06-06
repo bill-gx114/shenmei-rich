@@ -70,6 +70,7 @@ async function hydrateWork(w: any): Promise<Work> {
     room: w.room ?? '',
     shortLabel: w.short_label ?? '',
     curatorNote: w.curator_note ?? null,
+    sourceUrl: w.source_url ?? null,
     image: publicImageUrl(w.image_path),
     hotspots: (hot.data ?? []).map((h) => ({
       x: Number(h.x),
@@ -362,7 +363,7 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
     supabase
       .from('works')
       .select(
-        'id, no, title, artist, artist_romaji, year, category, location, room, lat, lng, image_path, short_label, curator_note, kind, exhibited_on, hotspots(label, detail, order_index)',
+        'id, no, title, artist, artist_romaji, year, category, location, room, lat, lng, image_path, short_label, curator_note, source_url, kind, exhibited_on, hotspots(label, detail, order_index)',
       )
       .in('kind', ['roam', 'daily'])
       .not('lat', 'is', null)
@@ -416,6 +417,7 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
     image_path: string | null;
     short_label: string | null;
     curator_note: string | null;
+    source_url: string | null;
     kind: 'roam' | 'daily' | null;
     exhibited_on: string | null;
     hotspots: Array<{ label: string; detail: string; order_index: number }> | null;
@@ -441,6 +443,7 @@ async function fetchRoamPlaces(): Promise<RoamPlace[]> {
         .slice()
         .sort((a, b) => a.order_index - b.order_index)
         .map((h) => ({ label: h.label, detail: h.detail })),
+      sourceUrl: w.source_url ?? undefined,
       kind: (w.kind ?? 'daily') as 'roam' | 'daily',
       exhibitedOn: w.exhibited_on ?? undefined,
       locked: false,
