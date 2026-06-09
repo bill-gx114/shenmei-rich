@@ -22,6 +22,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
+import { resolveDimensions } from '../lib/wikidata.js';
 
 export const config = { maxDuration: 60 };
 
@@ -274,7 +275,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const url = new URL(req.url ?? '', 'http://localhost');
   const auto = url.searchParams.get('auto') === '1';
   const phaseParam = url.searchParams.get('phase');
-  const phase = phaseParam === 'audio' ? 'audio' : phaseParam === 'images' ? 'images' : 'core';
+  const phase =
+    phaseParam === 'audio'
+      ? 'audio'
+      : phaseParam === 'images'
+        ? 'images'
+        : phaseParam === 'size'
+          ? 'size'
+          : 'core';
   const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
   const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
   const started = Date.now();
@@ -317,6 +325,57 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ ok: true, phase, withImage: withImageAfter, totalBuilt: all.length, remaining, stillEmpty: done.filter((d) => !d.ok).map((d) => d.no + ' ' + d.title), results: done }));
+    return;
+  }
+
+  // ── Size repair: fill `size` from Wikidata (structured dims) ───────────────
+  // Season works were inserted without size (it isn't in the prose extract).
+  // Resolve from each work's Wikipedia article → Wikidata height/width. Covers
+  // daily + roam (both global). No AI.
+  if (phase === 'size') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, size, source_url')
+      .in('kind', ['daily', 'roam'])
+      .is('owner_id', null);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    type Row = { id: string; no: string; title: string; size: string | null; source_url: string | null };
+    const all = (rows ?? []) as Row[];
+    const missing = all.filter((r) => !r.size && r.source_url);
+    const log: BuildResult[] = [];
+    for (const r of missing) {
+      if (Date.now() - started > CORE_BUDGET_MS) break;
+      const dims = await resolveDimensions(r.source_url);
+      if (dims) {
+        await supabase.from('works').update({ size: dims }).eq('id', r.id);
+        log.push({ no: r.no, title: `${r.title} · ${dims}`, ok: true, errors: [] });
+      } else {
+        log.push({ no: r.no, title: r.title, ok: false, errors: ['无尺寸数据'] });
+      }
+    }
+    const haveAfter = all.length - missing.length + log.filter((d) => d.ok).length;
+    const remaining = all.filter((r) => !r.size && r.source_url).length - log.filter((d) => d.ok).length;
+    if (auto) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(htmlPage('作品 · 尺寸回填', haveAfter, all.length, remaining, log));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(
+      JSON.stringify({
+        ok: true,
+        phase,
+        fixed: log.filter((d) => d.ok).length,
+        stillEmpty: log.filter((d) => !d.ok).map((d) => `${d.no} ${d.title}`),
+        results: log,
+      }),
+    );
     return;
   }
 
