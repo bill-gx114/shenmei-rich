@@ -23,6 +23,7 @@ import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
+import { safeImg } from '../lib/imageUrl.js';
 
 export const config = { maxDuration: 60 };
 
@@ -330,9 +331,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  // ── Image-width cap: oversized Wikimedia thumbs (e.g. 3840px) hit the
-  // thumbnail render limit and fail to load in the browser → placeholder shows.
-  // Rewrite any thumb wider than 1600px down to 1600 (pure string op, no fetch).
+  // ── Image normalization: convert huge originals + oversized thumbs to a
+  // reliable 1600px thumbnail (see lib/imageUrl.ts). Pure string op, no fetch.
   if (phase === 'imgcap') {
     const { data: rows, error } = await supabase
       .from('works')
@@ -348,11 +348,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const fixed: string[] = [];
     for (const r of all) {
       const ip = r.image_path ?? '';
-      const m = /\/(\d+)px-/.exec(ip);
-      if (!ip.includes('/thumb/') || !m || Number(m[1]) <= 1600) continue;
-      const next = ip.replace(/\/\d+px-/, '/1600px-');
+      const next = safeImg(ip);
+      if (!next || next === ip) continue;
       await supabase.from('works').update({ image_path: next }).eq('id', r.id);
-      fixed.push(`${r.no} ${r.title} (${m[1]}→1600)`);
+      fixed.push(`${r.no} ${r.title}`);
     }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

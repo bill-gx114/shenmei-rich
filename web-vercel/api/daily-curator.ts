@@ -27,6 +27,7 @@ import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curat
 import { coordsForSeed } from '../lib/seedCoords.js';
 import { coordsForLocation } from '../lib/museums.js';
 import { wikiUrl, dailySourceUrl } from '../lib/wikiLinks.js';
+import { safeImg } from '../lib/imageUrl.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -407,12 +408,10 @@ export default async (req: Request) => {
   const seed = rowToSeed(seedRows[idx] as SeedRow);
   const no = String(total + 1).padStart(3, '0');
 
-  // 3. Fetch a public-domain image from Wikipedia (best-effort). Cap oversized
-  // thumbs (>1600px) — 4K-wide thumbs hit Wikimedia's render limit and fail.
+  // 3. Fetch a public-domain image from Wikipedia (best-effort). Normalize to a
+  // 1600px thumb (huge originals / 4K thumbs fail to load in the browser).
   const imageUrlRaw = await fetchWikipediaImage(seed);
-  const imageUrl = imageUrlRaw
-    ? imageUrlRaw.replace(/\/(\d+)px-/, (m, n) => (Number(n) > 1600 ? '/1600px-' : m))
-    : imageUrlRaw;
+  const imageUrl = imageUrlRaw ? safeImg(imageUrlRaw) : imageUrlRaw;
 
   // 4. Have DeepSeek write the CORE pack (label + note + hotspots + questions
   //    + vocabulary). This is the small, must-have interactive content — it's
