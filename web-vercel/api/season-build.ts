@@ -282,7 +282,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         ? 'images'
         : phaseParam === 'size'
           ? 'size'
-          : 'core';
+          : phaseParam === 'imgcap'
+            ? 'imgcap'
+            : 'core';
   const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
   const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
   const started = Date.now();
@@ -325,6 +327,36 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ ok: true, phase, withImage: withImageAfter, totalBuilt: all.length, remaining, stillEmpty: done.filter((d) => !d.ok).map((d) => d.no + ' ' + d.title), results: done }));
+    return;
+  }
+
+  // ── Image-width cap: oversized Wikimedia thumbs (e.g. 3840px) hit the
+  // thumbnail render limit and fail to load in the browser → placeholder shows.
+  // Rewrite any thumb wider than 1600px down to 1600 (pure string op, no fetch).
+  if (phase === 'imgcap') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, image_path')
+      .in('kind', ['daily', 'roam'])
+      .is('owner_id', null);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    const all = (rows ?? []) as Array<{ id: string; no: string; title: string; image_path: string | null }>;
+    const fixed: string[] = [];
+    for (const r of all) {
+      const ip = r.image_path ?? '';
+      const m = /\/(\d+)px-/.exec(ip);
+      if (!ip.includes('/thumb/') || !m || Number(m[1]) <= 1600) continue;
+      const next = ip.replace(/\/\d+px-/, '/1600px-');
+      await supabase.from('works').update({ image_path: next }).eq('id', r.id);
+      fixed.push(`${r.no} ${r.title} (${m[1]}→1600)`);
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: true, mode: 'imgcap', fixedCount: fixed.length, fixed }));
     return;
   }
 

@@ -407,8 +407,12 @@ export default async (req: Request) => {
   const seed = rowToSeed(seedRows[idx] as SeedRow);
   const no = String(total + 1).padStart(3, '0');
 
-  // 3. Fetch a public-domain image from Wikipedia (best-effort).
-  const imageUrl = await fetchWikipediaImage(seed);
+  // 3. Fetch a public-domain image from Wikipedia (best-effort). Cap oversized
+  // thumbs (>1600px) — 4K-wide thumbs hit Wikimedia's render limit and fail.
+  const imageUrlRaw = await fetchWikipediaImage(seed);
+  const imageUrl = imageUrlRaw
+    ? imageUrlRaw.replace(/\/(\d+)px-/, (m, n) => (Number(n) > 1600 ? '/1600px-' : m))
+    : imageUrlRaw;
 
   // 4. Have DeepSeek write the CORE pack (label + note + hotspots + questions
   //    + vocabulary). This is the small, must-have interactive content — it's
