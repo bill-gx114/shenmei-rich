@@ -357,12 +357,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         log.push({ no: r.no, title: r.title, ok: false, errors: ['无尺寸数据'] });
       }
     }
-    const haveAfter = all.length - missing.length + log.filter((d) => d.ok).length;
-    const remaining = all.filter((r) => !r.size && r.source_url).length - log.filter((d) => d.ok).length;
+    const fixedNow = log.filter((d) => d.ok).length;
+    const haveAfter = all.length - missing.length + fixedNow;
+    // Works that returned "no dims" are terminal (buildings/sites, or not in
+    // Wikidata). Once a whole sweep recovers nothing, stop — otherwise the page
+    // would loop forever re-querying the same un-recoverable works.
+    const realRemaining = missing.length - fixedNow;
+    const displayRemaining = fixedNow > 0 ? realRemaining : 0;
     if (auto) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.end(htmlPage('作品 · 尺寸回填', haveAfter, all.length, remaining, log));
+      res.end(htmlPage('作品 · 尺寸回填', haveAfter, all.length, displayRemaining, log));
       return;
     }
     res.statusCode = 200;

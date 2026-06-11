@@ -35,6 +35,22 @@ async function qidFor(lang: string, title: string): Promise<string | null> {
   }
 }
 
+// Search a Wikipedia for an article when the stored slug doesn't resolve
+// directly (some works' exact slug was wrong — their images were recovered via
+// search too). Returns the first result's title (underscored).
+async function searchArticle(lang: string, query: string): Promise<string | null> {
+  try {
+    const u = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(query)}`;
+    const r = await fetch(u, { headers: { 'User-Agent': UA } });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { query?: { search?: Array<{ title: string }> } };
+    const t = d.query?.search?.[0]?.title;
+    return t ? t.replace(/ /g, '_') : null;
+  } catch {
+    return null;
+  }
+}
+
 function fmtNum(amount: string): string {
   const n = parseFloat(amount);
   if (!Number.isFinite(n)) return amount.replace(/^\+/, '');
@@ -78,7 +94,12 @@ async function dimsFromQid(qid: string): Promise<string | null> {
 export async function resolveDimensions(sourceUrl: string | null | undefined): Promise<string | null> {
   const p = parseWikiUrl(sourceUrl);
   if (!p) return null;
-  const qid = await qidFor(p.lang, p.title);
+  let qid = await qidFor(p.lang, p.title);
+  if (!qid) {
+    // Stored slug didn't resolve — search for the real article, then its QID.
+    const found = await searchArticle(p.lang, p.title.replace(/_/g, ' '));
+    if (found) qid = await qidFor(p.lang, found);
+  }
   if (!qid) return null;
   return dimsFromQid(qid);
 }
