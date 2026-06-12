@@ -23,7 +23,7 @@ import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
-import { safeImg } from '../lib/imageUrl.js';
+import { safeImg, wikimediaDownloadUrl } from '../lib/imageUrl.js';
 
 export const config = { maxDuration: 60 };
 
@@ -356,7 +356,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     for (const r of todo) {
       if (Date.now() - started > 42_000) break;
       try {
-        const resp = await fetch(r.image_path as string, { headers: { 'User-Agent': WIKI_UA } });
+        const resp = await fetch(wikimediaDownloadUrl(r.image_path as string), {
+          headers: { 'User-Agent': WIKI_UA, Accept: 'image/*' },
+          redirect: 'follow',
+        });
         if (!resp.ok) {
           log.push({ no: r.no, title: r.title, ok: false, errors: [`下载 ${resp.status}`] });
           continue;

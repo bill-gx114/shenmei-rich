@@ -24,3 +24,14 @@ export function safeImg(url: string | null | undefined): string {
   const [, base, a, ab, file] = m;
   return `${base}/thumb/${a}/${ab}/${file}/1600px-${file}`;
 }
+
+// For SERVER-SIDE downloading: turn an upload.wikimedia.org URL into the
+// official Special:FilePath endpoint, which generates the thumbnail on demand
+// and redirects — a direct constructed thumb URL often 400s server-side.
+export function wikimediaDownloadUrl(ip: string): string {
+  let m = /\/wikipedia\/([^/]+)\/thumb\/[0-9a-fA-F]\/[0-9a-fA-F]{2}\/([^/]+)\/[^/]+$/.exec(ip);
+  if (!m) m = /\/wikipedia\/([^/]+)\/[0-9a-fA-F]\/[0-9a-fA-F]{2}\/([^/]+)$/.exec(ip);
+  if (!m) return ip;
+  const wiki = m[1] === 'commons' ? 'commons.wikimedia.org' : `${m[1]}.wikipedia.org`;
+  return `https://${wiki}/wiki/Special:FilePath/${m[2]}?width=1600`;
+}

@@ -27,7 +27,7 @@ import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curat
 import { coordsForSeed } from '../lib/seedCoords.js';
 import { coordsForLocation } from '../lib/museums.js';
 import { wikiUrl, dailySourceUrl } from '../lib/wikiLinks.js';
-import { safeImg } from '../lib/imageUrl.js';
+import { safeImg, wikimediaDownloadUrl } from '../lib/imageUrl.js';
 import { envVar } from '../lib/env.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
@@ -417,7 +417,10 @@ export default async (req: Request) => {
   let imageUrl = cappedUrl;
   if (cappedUrl) {
     try {
-      const ir = await fetch(cappedUrl, { headers: { 'User-Agent': 'shenmei-daily/1.0' } });
+      const ir = await fetch(wikimediaDownloadUrl(cappedUrl), {
+        headers: { 'User-Agent': 'shenmei-daily/1.0 (+https://shenmei-rich.vercel.app)', Accept: 'image/*' },
+        redirect: 'follow',
+      });
       if (ir.ok) {
         const ct = ir.headers.get('content-type') ?? 'image/jpeg';
         const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
