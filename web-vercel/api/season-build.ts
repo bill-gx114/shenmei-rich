@@ -23,6 +23,7 @@ import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
+import { SIZE_OVERRIDES } from '../lib/sizeOverrides.js';
 import { safeImg, wikimediaDownloadUrl } from '../lib/imageUrl.js';
 
 export const config = { maxDuration: 60 };
@@ -444,7 +445,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const log: BuildResult[] = [];
     for (const r of missing) {
       if (Date.now() - started > CORE_BUDGET_MS) break;
-      const dims = await resolveDimensions(r.source_url);
+      const dims = (await resolveDimensions(r.source_url)) ?? SIZE_OVERRIDES[r.title] ?? null;
       if (dims) {
         await supabase.from('works').update({ size: dims }).eq('id', r.id);
         log.push({ no: r.no, title: `${r.title} · ${dims}`, ok: true, errors: [] });
