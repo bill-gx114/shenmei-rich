@@ -410,9 +410,27 @@ export default async (req: Request) => {
   const no = String(total + 1).padStart(3, '0');
 
   // 3. Fetch a public-domain image from Wikipedia (best-effort). Normalize to a
-  // 1600px thumb (huge originals / 4K thumbs fail to load in the browser).
+  // 1600px thumb, then mirror it into our own Storage so the gallery never
+  // depends on Wikimedia hotlinking (which gets rate-limited at scale).
   const imageUrlRaw = await fetchWikipediaImage(seed);
-  const imageUrl = imageUrlRaw ? safeImg(imageUrlRaw) : imageUrlRaw;
+  const cappedUrl = imageUrlRaw ? safeImg(imageUrlRaw) : imageUrlRaw;
+  let imageUrl = cappedUrl;
+  if (cappedUrl) {
+    try {
+      const ir = await fetch(cappedUrl, { headers: { 'User-Agent': 'shenmei-daily/1.0' } });
+      if (ir.ok) {
+        const ct = ir.headers.get('content-type') ?? 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+        const buf = await ir.arrayBuffer();
+        const up = await supabase.storage
+          .from('works')
+          .upload(`mirror/${no}.${ext}`, buf, { contentType: ct, upsert: true });
+        if (!up.error) imageUrl = supabase.storage.from('works').getPublicUrl(`mirror/${no}.${ext}`).data.publicUrl;
+      }
+    } catch {
+      /* keep the Wikimedia URL if mirroring fails */
+    }
+  }
 
   // 4. Have DeepSeek write the CORE pack (label + note + hotspots + questions
   //    + vocabulary). This is the small, must-have interactive content — it's

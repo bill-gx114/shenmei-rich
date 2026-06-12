@@ -285,7 +285,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           ? 'size'
           : phaseParam === 'imgcap'
             ? 'imgcap'
-            : 'core';
+            : phaseParam === 'mirror'
+              ? 'mirror'
+              : 'core';
   const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
   const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
   const started = Date.now();
@@ -328,6 +330,65 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ ok: true, phase, withImage: withImageAfter, totalBuilt: all.length, remaining, stillEmpty: done.filter((d) => !d.ok).map((d) => d.no + ' ' + d.title), results: done }));
+    return;
+  }
+
+  // ── Mirror images into our own Supabase Storage ───────────────────────────
+  // Hotlinking many Wikimedia images at once gets rate-limited/blocked → mass
+  // placeholders. Download each (server-side, not throttled like browser
+  // hotlinks) and serve from our own bucket. Idempotent, time-boxed, auto.
+  if (phase === 'mirror') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, image_path')
+      .in('kind', ['daily', 'roam'])
+      .is('owner_id', null);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    const STORAGE_MARK = '/storage/v1/object/public/works/mirror/';
+    const all = (rows ?? []) as Array<{ id: string; no: string; title: string; image_path: string | null }>;
+    const alreadyMirrored = all.filter((r) => r.image_path?.includes(STORAGE_MARK)).length;
+    const todo = all.filter((r) => r.image_path && !r.image_path.includes(STORAGE_MARK));
+    const log: BuildResult[] = [];
+    for (const r of todo) {
+      if (Date.now() - started > 42_000) break;
+      try {
+        const resp = await fetch(r.image_path as string, { headers: { 'User-Agent': WIKI_UA } });
+        if (!resp.ok) {
+          log.push({ no: r.no, title: r.title, ok: false, errors: [`下载 ${resp.status}`] });
+          continue;
+        }
+        const ct = resp.headers.get('content-type') ?? 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+        const buf = await resp.arrayBuffer();
+        const path = `mirror/${r.no}.${ext}`;
+        const up = await supabase.storage.from('works').upload(path, buf, { contentType: ct, upsert: true });
+        if (up.error) {
+          log.push({ no: r.no, title: r.title, ok: false, errors: [`上传 ${up.error.message}`] });
+          continue;
+        }
+        const pub = supabase.storage.from('works').getPublicUrl(path).data.publicUrl;
+        await supabase.from('works').update({ image_path: pub }).eq('id', r.id);
+        log.push({ no: r.no, title: r.title, ok: true, errors: [] });
+      } catch (e) {
+        log.push({ no: r.no, title: r.title, ok: false, errors: [e instanceof Error ? e.message : String(e)] });
+      }
+    }
+    const okNow = log.filter((d) => d.ok).length;
+    const doneTotal = alreadyMirrored + okNow;
+    const displayRemaining = okNow > 0 ? all.length - doneTotal : 0; // stop if a sweep mirrors nothing
+    if (auto) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(htmlPage('作品 · 图片镜像', doneTotal, all.length, displayRemaining, log));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: true, mode: 'mirror', mirrored: doneTotal, total: all.length, thisBatch: okNow, failed: log.filter((d) => !d.ok) }));
     return;
   }
 
