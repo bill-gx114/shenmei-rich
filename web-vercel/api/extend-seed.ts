@@ -17,6 +17,7 @@ export const config = { runtime: 'edge' };
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SEED_WORKS } from '../lib/seed-works.js';
+import { envVar } from '../lib/env.js';
 
 // How many candidates to ask DeepSeek for each run. Runs weekly (see
 // vercel.json cron), so ~15/week × 4 ≈ 60 candidates/month; after Wikipedia
@@ -74,7 +75,7 @@ function jsonResponse(status: number, body: unknown) {
 }
 
 async function callDeepSeek(existingList: string): Promise<Candidate[]> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = envVar('DEEPSEEK_API_KEY');
   if (!apiKey) throw new Error('DEEPSEEK_API_KEY 未配置');
 
   const r = await fetch('https://api.deepseek.com/chat/completions', {
@@ -226,8 +227,8 @@ async function ensureSeedTablePopulated(supabase: SupabaseClient): Promise<numbe
 
 // ── main ─────────────────────────────────────────────────────────────────
 export default async () => {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = envVar('VITE_SUPABASE_URL') ?? envVar('SUPABASE_URL');
+  const serviceKey = envVar('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) {
     return jsonResponse(500, { error: 'Supabase 凭据未配置' });
   }

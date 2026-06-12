@@ -14,6 +14,7 @@
 export const config = { runtime: 'edge' };
 
 import { createClient } from '@supabase/supabase-js';
+import { envVar } from '../lib/env.js';
 
 type HotspotInput = {
   x: number;
@@ -37,10 +38,10 @@ function jsonResponse(status: number, body: unknown) {
 export default async (req: Request) => {
   if (req.method !== 'POST') return jsonResponse(405, { error: 'Method not allowed' });
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const adminEmail = process.env.ADMIN_EMAIL;
+  const supabaseUrl = envVar('VITE_SUPABASE_URL') ?? envVar('SUPABASE_URL');
+  const anonKey = envVar('VITE_SUPABASE_ANON_KEY');
+  const serviceKey = envVar('SUPABASE_SERVICE_ROLE_KEY');
+  const adminEmail = envVar('ADMIN_EMAIL');
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return jsonResponse(500, { error: 'Supabase 凭据未配置' });
   }

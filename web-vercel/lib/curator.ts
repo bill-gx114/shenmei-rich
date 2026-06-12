@@ -13,6 +13,8 @@
 // fits, and the audio scripts get their own full budget. If the audio call
 // fails or truncates, the rest still ships — graceful degradation.
 
+import { envVar } from './env.js';
+
 export type CuratorPackInput = {
   title: string;
   artist: string;
@@ -213,7 +215,7 @@ function normalizeAudio(raw: unknown): Record<VoiceKey, AudioLine[]> {
 }
 
 function requireApiKey(): string {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = envVar('DEEPSEEK_API_KEY');
   if (!apiKey) throw new Error('DEEPSEEK_API_KEY 未配置');
   return apiKey;
 }

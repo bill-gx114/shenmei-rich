@@ -28,6 +28,7 @@ import { coordsForSeed } from '../lib/seedCoords.js';
 import { coordsForLocation } from '../lib/museums.js';
 import { wikiUrl, dailySourceUrl } from '../lib/wikiLinks.js';
 import { safeImg } from '../lib/imageUrl.js';
+import { envVar } from '../lib/env.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function beijingTodayISO(): string {
@@ -274,8 +275,8 @@ async function backfillIncompleteWorks(supabase: SupabaseClient): Promise<Respon
 
 // ── main ─────────────────────────────────────────────────────────────────
 export default async (req: Request) => {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = envVar('VITE_SUPABASE_URL') ?? envVar('SUPABASE_URL');
+  const serviceKey = envVar('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) {
     return jsonResponse(500, {
       error:
