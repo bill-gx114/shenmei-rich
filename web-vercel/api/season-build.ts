@@ -19,7 +19,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SEASON1, WEEK_THEMES, type SeasonWork } from '../lib/season1.js';
+import { type SeasonWork } from '../lib/season1.js';
+import { seasonDef, themeForTitle } from '../lib/seasons.js';
 import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
@@ -28,7 +29,6 @@ import { safeImg, wikimediaDownloadUrl } from '../lib/imageUrl.js';
 
 export const config = { maxDuration: 60 };
 
-const SERIES = 'season1';
 const CORE_BUDGET_MS = 38_000; // leaves headroom: worst case one more ~10s core then return
 const AUDIO_BUDGET_MS = 32_000; // audio ~12s each; never start one that could exceed 60s
 const MEDIUM_FALLBACK: Record<string, string> = { 画: '绘画', 雕: '雕塑', 器: '器物' };
@@ -167,10 +167,11 @@ async function buildCore(
   w: SeasonWork,
   no: string,
   exhibitedOn: string,
+  series: string,
+  theme: string,
 ): Promise<BuildResult> {
   const errors: string[] = [];
   const { image, extract } = await fetchWiki(w.lang ?? 'en', w.slug);
-  const theme = WEEK_THEMES[w.week] ?? '';
   const input = { title: w.title, artist: w.artist, hint: theme, context: extract || undefined };
 
   let core;
@@ -185,7 +186,7 @@ async function buildCore(
     .insert({
       owner_id: null,
       kind: 'daily',
-      series: SERIES,
+      series,
       no,
       exhibited_on: exhibitedOn,
       title: w.title,
@@ -289,8 +290,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             : phaseParam === 'mirror'
               ? 'mirror'
               : 'core';
-  const titleIndex = new Map(SEASON1.map((w, i) => [w.title, i]));
-  const byTitle = new Map(SEASON1.map((w) => [w.title, w]));
+  const season = Number(url.searchParams.get('season')) || 1;
+  const def = seasonDef(season);
+  const SERIES = def.series;
+  const titleIndex = new Map(def.works.map((w, i) => [w.title, i]));
+  const byTitle = new Map(def.works.map((w) => [w.title, w]));
   const started = Date.now();
   const done: BuildResult[] = [];
 
@@ -325,7 +329,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (auto) {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.end(htmlPage('第一季 · 补图', withImageAfter, all.length, remaining, done));
+      res.end(htmlPage(`第 ${season} 季 · 补图`, withImageAfter, all.length, remaining, done));
       return;
     }
     res.statusCode = 200;
@@ -513,10 +517,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
-    const hintFor = (r: Row) => {
-      const sw = byTitle.get(r.title);
-      return sw ? WEEK_THEMES[sw.week] : r.short_label ?? undefined;
-    };
+    const hintFor = (r: Row) => themeForTitle(r.title) ?? r.short_label ?? undefined;
     const targets = only
       ? all.filter((r) => r.no === only)
       : all.filter((r) => (r.audio_lines[0]?.count ?? 0) === 0);
@@ -574,18 +575,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     baseNo = maxNo + 1;
   }
 
-  const todo = SEASON1.map((w, i) => ({ w, i })).filter(({ w }) => !builtTitles.has(w.title));
+  const todo = def.works.map((w, i) => ({ w, i })).filter(({ w }) => !builtTitles.has(w.title));
   for (const { w, i } of todo) {
     if (Date.now() - started > CORE_BUDGET_MS) break;
-    done.push(await buildCore(supabase, w, pad(baseNo + i), addDaysISO(startDate, i)));
+    done.push(
+      await buildCore(supabase, w, pad(baseNo + i), addDaysISO(startDate, i), def.series, def.themes[w.week] ?? ''),
+    );
   }
 
   const builtTotalAfter = builtSeason.length + done.filter((d) => d.ok).length;
-  const remaining = SEASON1.length - builtTotalAfter;
+  const remaining = def.works.length - builtTotalAfter;
   if (auto) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.end(htmlPage('第一季 · 内容预生成', builtTotalAfter, SEASON1.length, remaining, done));
+    res.end(htmlPage(`第 ${season} 季 · 内容预生成`, builtTotalAfter, def.works.length, remaining, done));
     return;
   }
   res.statusCode = 200;
