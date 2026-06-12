@@ -29,7 +29,7 @@ export const SEASON2: SeasonWork[] = [
   { title: '卡斯蒂利奥内像', artist: '拉斐尔', slug: 'Portrait_of_Baldassare_Castiglione', region: 'west', category: '画', week: 1 },
   { title: '阅读的少女', artist: '弗拉戈纳尔', slug: 'A_Young_Girl_Reading', region: 'west', category: '画', week: 1 },
   { title: '加布里埃尔姐妹', artist: '枫丹白露画派', slug: "Gabrielle_d'Estrées_and_one_of_her_sisters", region: 'west', category: '画', week: 1 },
-  { title: '见返美人图', artist: '菱川师宣', slug: 'Beauty_Looking_Back', region: 'east', category: '画', week: 1 },
+  { title: '见返美人图', artist: '菱川师宣', slug: '見返り美人図', lang: 'ja', region: 'east', category: '画', week: 1 },
   // 第 2 周 · 自画像
   { title: '自画像（草帽）', artist: '维瑞·勒布伦', slug: 'Self-portrait_in_a_Straw_Hat', region: 'west', category: '画', week: 2 },
   { title: '自画像（1500）', artist: '丢勒', slug: 'Self-Portrait_(Dürer,_Munich)', region: 'west', category: '画', week: 2 },
