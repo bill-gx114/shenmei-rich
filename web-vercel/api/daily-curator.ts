@@ -302,7 +302,7 @@ export default async (req: Request) => {
   if (url.searchParams.get('coords') === '1') {
     const { data: rows, error } = await supabase
       .from('works')
-      .select('id, no, title, lat, location')
+      .select('id, no, title, lat, location, source_url')
       .eq('kind', 'daily')
       .is('owner_id', null);
     if (error) return jsonResponse(500, { error: '读取 works 失败', detail: error.message });
@@ -310,9 +310,14 @@ export default async (req: Request) => {
     const unmatched: string[] = [];
     for (const w of rows ?? []) {
       if (w.lat != null) continue; // already has coordinates
-      // Title-based seed map first, then the museum gazetteer on the AI-filled
-      // `location` (covers the 91 season works without hand-tagging).
-      const c = coordsForSeed(null, w.title as string) ?? coordsForLocation(w.location as string);
+      // Pull the Wikipedia slug out of source_url so same-titled works (e.g. the
+      // two 《泉》 — Duchamp vs. Ingres) resolve to distinct coordinates.
+      let slug: string | null = null;
+      const m = /\/wiki\/([^?#]+)/.exec((w.source_url as string) ?? '');
+      if (m) try { slug = decodeURIComponent(m[1]); } catch { slug = m[1]; }
+      // Seed map (slug, then title) first, then the museum gazetteer on the
+      // AI-filled `location` (covers most season works without hand-tagging).
+      const c = coordsForSeed(slug, w.title as string) ?? coordsForLocation(w.location as string);
       if (!c) {
         unmatched.push(`${w.title}${w.location ? ' @ ' + w.location : ''}`);
         continue;

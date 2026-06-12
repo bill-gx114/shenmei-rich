@@ -51,6 +51,12 @@ export const SEED_COORDS: Record<string, { lat: number; lng: number }> = {
   内战的预感: { lat: 39.9656, lng: -75.181 }, // 费城艺术博物馆
   空间中连续的形: { lat: 40.7614, lng: -73.9776 }, // MoMA
   '自画像（两圆）': { lat: 51.5717, lng: -0.1676 }, // 伦敦肯伍德府
+  // 季2 补：location 为空或同名歧义，按 wikipediaSlug 精确钉点。
+  'The_Source_(Ingres)': { lat: 48.86, lng: 2.3266 }, // 安格尔《泉》· 奥赛
+  'Fountain_(Duchamp)': { lat: 51.5076, lng: -0.0994 }, // 杜尚《泉》· 泰特（复制品）
+  One_and_Three_Chairs: { lat: 40.7614, lng: -73.9776 }, // 科苏斯 · MoMA
+  'The_Fourth_Estate_(painting)': { lat: 45.4636, lng: 9.1897 }, // 第四等级 · 米兰二十世纪博物馆
+  写生珍禽图: { lat: 39.9163, lng: 116.3972 }, // 黄筌 · 北京故宫（AI 把馆名误填为上海龙美术馆）
 };
 
 const titleToSlug = new Map(SEED_WORKS.map((s) => [s.title, s.wikipediaSlug]));
