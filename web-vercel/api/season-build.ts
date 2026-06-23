@@ -21,7 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { type SeasonWork } from '../lib/season1.js';
 import { seasonDef, themeForTitle } from '../lib/seasons.js';
-import { generateCorePack, generateAudioScripts, VOICE_KEYS } from '../lib/curator.js';
+import { generateCorePack, generateAudioScripts, generateReveals, VOICE_KEYS } from '../lib/curator.js';
 import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
 import { SIZE_OVERRIDES } from '../lib/sizeOverrides.js';
@@ -217,7 +217,7 @@ async function buildCore(
   }
   if (core.questions?.length) {
     const r = await supabase.from('questions').insert(
-      core.questions.map((q, i) => ({ work_id: workId, q: q.q, hint: q.hint, options: q.options, order_index: i })),
+      core.questions.map((q, i) => ({ work_id: workId, q: q.q, hint: q.hint, reveal: q.reveal ?? '', options: q.options, order_index: i })),
     );
     if (r.error) errors.push(`questions: ${r.error.message}`);
   }
@@ -292,7 +292,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
               ? 'mirror'
               : phaseParam === 'imgset'
                 ? 'imgset'
-                : 'core';
+                : phaseParam === 'qreveal'
+                  ? 'qreveal'
+                  : 'core';
   const season = Number(url.searchParams.get('season')) || 1;
   const def = seasonDef(season);
   const SERIES = def.series;
@@ -338,6 +340,58 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ ok: true, phase, withImage: withImageAfter, totalBuilt: all.length, remaining, stillEmpty: done.filter((d) => !d.ok).map((d) => d.no + ' ' + d.title), results: done }));
+    return;
+  }
+
+  // ── Backfill 每日三题的「答后揭晓」reveal（给已建作品补，无需重跑整包）──────────
+  if (phase === 'qreveal') {
+    const { data: rows, error } = await supabase
+      .from('works')
+      .select('id, no, title, artist, questions(id, q, options, reveal, order_index)')
+      .in('kind', ['daily', 'roam'])
+      .is('owner_id', null);
+    if (error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: '读取 works 失败', detail: error.message }));
+      return;
+    }
+    type QRow = { id: string; q: string; options: string[] | null; reveal: string | null; order_index: number };
+    type WRow = { id: string; no: string; title: string; artist: string; questions: QRow[] };
+    const all = (rows ?? []) as WRow[];
+    const needs = all.filter((w) => w.questions?.length && w.questions.some((q) => !q.reveal));
+    const log: BuildResult[] = [];
+    for (const w of needs) {
+      if (Date.now() - started > CORE_BUDGET_MS) break;
+      const qs = w.questions.slice().sort((a, b) => a.order_index - b.order_index);
+      try {
+        const reveals = await generateReveals(
+          { title: w.title, artist: w.artist },
+          qs.map((q) => ({ q: q.q, options: q.options ?? [] })),
+        );
+        let wrote = 0;
+        for (let i = 0; i < qs.length; i++) {
+          const rv = reveals[i];
+          if (rv && rv.length > 0 && !qs[i].reveal) {
+            await supabase.from('questions').update({ reveal: rv }).eq('id', qs[i].id);
+            wrote++;
+          }
+        }
+        log.push({ no: w.no, title: `${w.title} · ${wrote} 题`, ok: wrote > 0, errors: wrote > 0 ? [] : ['未写入'] });
+      } catch (e) {
+        log.push({ no: w.no, title: w.title, ok: false, errors: [e instanceof Error ? e.message : String(e)] });
+      }
+    }
+    const okNow = log.filter((d) => d.ok).length;
+    const remaining = needs.length - okNow;
+    if (auto) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(htmlPage('每日三题 · 揭晓回填', all.length - needs.length + okNow, all.length, okNow > 0 ? remaining : 0, log));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: true, phase, filledNow: okNow, stillNeeding: remaining, results: log }));
     return;
   }
 

@@ -26,7 +26,7 @@ export type CuratorPackInput = {
 
 export type Hotspot = { x: number; y: number; label: string; detail: string };
 export type AudioLine = { t: number; text: string };
-export type Question = { q: string; hint: string; options: string[] };
+export type Question = { q: string; hint: string; reveal: string; options: string[] };
 export type Vocab = { word: string; note: string; isNew: boolean };
 
 export const VOICE_KEYS = ['清·克制', '专业·锐利', '诗意·散文'] as const;
@@ -69,8 +69,11 @@ const CORE_SYSTEM_PROMPT = `${STYLE_BASE}
   ],   // 必须正好 3 个
 
   "questions": [
-    { "q": "问题（不超过 14 字）", "hint": "提示（25-35 字）", "options": ["选项一（4-8 字）", "选项二", "选项三", "选项四"] }
+    { "q": "问题（不超过 14 字）", "hint": "提示（25-35 字）", "reveal": "揭晓（35-55 字）", "options": ["选项一（4-8 字）", "选项二", "选项三", "选项四"] }
   ],   // 必须正好 3 题，依次：1) 第一眼，你被什么吸引？2) 它靠什么成立？3) 今天偷学一个动作？
+       // hint 是答题前的轻提示（往哪看）；reveal 是答完后揭晓的「为什么」——把观众的选择接回一条
+       // 能感知的审美原理（如"暖色天生向前、冷色后退，所以多数人第一眼落在黄色"）。这几道是感知题、
+       // 多无标准对错，reveal 不要判对错，而要让观众"哦——原来如此"，站在观众一侧、落到眼睛能体会的点上。
 
   "vocabulary": [
     { "word": "词", "note": "释义（20-35 字）", "isNew": 布尔值 }
@@ -285,4 +288,44 @@ export async function generateCuratorPack(input: CuratorPackInput): Promise<Cura
     vocabulary: core.vocabulary ?? [],
     audioLines,
   };
+}
+
+const REVEAL_SYSTEM_PROMPT = `${STYLE_BASE}
+
+你将收到一件作品的标题、作者，以及它的「每日三题」（每题含题干与四个选项）。请为每一题写一句**答完后揭晓的「为什么」**，返回**严格 JSON**：
+
+{ "reveals": ["第1题的揭晓", "第2题的揭晓", "第3题的揭晓"] }
+
+要求：
+- 每条 35-55 字，站在**观众**一侧——把观众的选择接回一条**能被眼睛感知**的审美原理，让人"哦——原来如此"。
+- 这三题多为感知题、无标准对错：**不要判对错**，而是点出"为什么会这样看 / 这个差别意味着什么 / 这个动作怎么用到别处"。
+- 讲"怎么看、好在哪、为什么耐看"，不要讲"画家用什么技法画出来的"。
+- reveals 数组长度与题数一致、顺序对应。只输出 JSON，不要解释或 markdown。`;
+
+/**
+ * 只为「每日三题」补写答后揭晓的「为什么」。用于给已建作品回填 reveal，
+ * 不必重跑整包。best-effort：失败/缺失返回空串，由调用方决定是否跳过。
+ */
+export async function generateReveals(
+  input: CuratorPackInput,
+  questions: Array<{ q: string; options: string[] }>,
+): Promise<string[]> {
+  if (questions.length === 0) return [];
+  const apiKey = requireApiKey();
+  const qLines = questions
+    .map((q, i) => `${i + 1}. ${q.q}　选项：${(q.options ?? []).join(' / ')}`)
+    .join('\n');
+  const userPrompt = [
+    `作品名：${input.title || '（未填）'}`,
+    `作者：${input.artist || '（未填）'}`,
+    input.context ? `背景资料（仅供参考，勿编造）：\n${input.context}` : '',
+    '每日三题：',
+    qLines,
+    '请为每题写一句揭晓，按题序输出 reveals 数组。',
+  ]
+    .filter((s) => s.length > 0)
+    .join('\n');
+  const out = await callDeepSeek<{ reveals?: unknown }>(apiKey, REVEAL_SYSTEM_PROMPT, userPrompt, 1024);
+  const arr = Array.isArray(out.reveals) ? (out.reveals as unknown[]) : [];
+  return questions.map((_q, i) => (typeof arr[i] === 'string' ? (arr[i] as string).trim() : ''));
 }
