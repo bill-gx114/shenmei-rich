@@ -26,6 +26,7 @@ import { wikiUrl } from '../lib/wikiLinks.js';
 import { resolveDimensions } from '../lib/wikidata.js';
 import { SIZE_OVERRIDES } from '../lib/sizeOverrides.js';
 import { safeImg, wikimediaDownloadUrl } from '../lib/imageUrl.js';
+import { IMAGE_OVERRIDES } from '../lib/imageOverrides.js';
 
 export const config = { maxDuration: 60 };
 
@@ -289,7 +290,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             ? 'imgcap'
             : phaseParam === 'mirror'
               ? 'mirror'
-              : 'core';
+              : phaseParam === 'imgset'
+                ? 'imgset'
+                : 'core';
   const season = Number(url.searchParams.get('season')) || 1;
   const def = seasonDef(season);
   const SERIES = def.series;
@@ -338,6 +341,67 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
+  // ── Manual override: set ONE work's image from a given URL ────────────────
+  // GET ?phase=imgset&no=<no>[&src=<image url>] — downloads src（省略则回退到
+  // IMAGE_OVERRIDES[no]）、镜像进 works/mirror/<no>.<ext>、更新 image_path（带
+  // ?v= 时间戳刷新 CDN）。用于自动取图抓错时手动指定正确图源。
+  if (phase === 'imgset') {
+    const no = url.searchParams.get('no');
+    if (!no) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: '缺少 no 参数' }));
+      return;
+    }
+    const src = url.searchParams.get('src') || IMAGE_OVERRIDES[no];
+    if (!src) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: `未提供 src，且 IMAGE_OVERRIDES 中无 ${no}` }));
+      return;
+    }
+    const { data: row, error: selErr } = await supabase
+      .from('works')
+      .select('id, no, title, image_path')
+      .eq('no', no)
+      .is('owner_id', null)
+      .maybeSingle();
+    if (selErr || !row) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: `找不到作品 no=${no}`, detail: selErr?.message }));
+      return;
+    }
+    try {
+      const resp = await fetch(wikimediaDownloadUrl(src), {
+        headers: { 'User-Agent': WIKI_UA, Accept: 'image/*' },
+        redirect: 'follow',
+      });
+      if (!resp.ok) {
+        res.statusCode = 502;
+        res.end(JSON.stringify({ error: `下载失败 ${resp.status}`, src }));
+        return;
+      }
+      const ct = resp.headers.get('content-type') ?? 'image/jpeg';
+      const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+      const buf = await resp.arrayBuffer();
+      const path = `mirror/${row.no}.${ext}`;
+      const upRes = await supabase.storage.from('works').upload(path, buf, { contentType: ct, upsert: true });
+      if (upRes.error) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: `上传失败 ${upRes.error.message}` }));
+        return;
+      }
+      const pub = supabase.storage.from('works').getPublicUrl(path).data.publicUrl;
+      const finalUrl = `${pub}?v=${Date.now()}`;
+      await supabase.from('works').update({ image_path: finalUrl }).eq('id', row.id);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({ ok: true, no: row.no, title: row.title, src, image_path: finalUrl }));
+    } catch (e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    }
+    return;
+  }
+
   // ── Mirror images into our own Supabase Storage ───────────────────────────
   // Hotlinking many Wikimedia images at once gets rate-limited/blocked → mass
   // placeholders. Download each (server-side, not throttled like browser
@@ -354,14 +418,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
     const STORAGE_MARK = '/storage/v1/object/public/works/mirror/';
+    const OV_MARK = 'ov=1'; // marks an image_path that已应用 IMAGE_OVERRIDES（只覆盖一次）
     const all = (rows ?? []) as Array<{ id: string; no: string; title: string; image_path: string | null }>;
-    const alreadyMirrored = all.filter((r) => r.image_path?.includes(STORAGE_MARK)).length;
-    const todo = all.filter((r) => r.image_path && !r.image_path.includes(STORAGE_MARK));
+    // 一行算「已完成」：有 override 时需已打 ov=1；无 override 时镜像 URL 已就位即可。
+    const isDone = (r: { no: string; image_path: string | null }): boolean =>
+      IMAGE_OVERRIDES[r.no] != null
+        ? (r.image_path ?? '').includes(OV_MARK)
+        : (r.image_path ?? '').includes(STORAGE_MARK);
+    const alreadyMirrored = all.filter(isDone).length;
+    // 待处理：override 未生效的，或还没镜像过的普通作品。
+    const todo = all.filter((r) => !isDone(r) && (IMAGE_OVERRIDES[r.no] != null || !!r.image_path));
     const log: BuildResult[] = [];
     for (const r of todo) {
       if (Date.now() - started > 42_000) break;
       try {
-        const resp = await fetch(wikimediaDownloadUrl(r.image_path as string), {
+        const override = IMAGE_OVERRIDES[r.no];
+        const srcUrl = override ?? (r.image_path as string);
+        const resp = await fetch(wikimediaDownloadUrl(srcUrl), {
           headers: { 'User-Agent': WIKI_UA, Accept: 'image/*' },
           redirect: 'follow',
         });
@@ -379,7 +452,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           continue;
         }
         const pub = supabase.storage.from('works').getPublicUrl(path).data.publicUrl;
-        await supabase.from('works').update({ image_path: pub }).eq('id', r.id);
+        // override 的图加 ?ov=1：既标记「已纠正」，又顺带刷新 CDN 缓存。
+        const finalUrl = override ? `${pub}?${OV_MARK}` : pub;
+        await supabase.from('works').update({ image_path: finalUrl }).eq('id', r.id);
         log.push({ no: r.no, title: r.title, ok: true, errors: [] });
       } catch (e) {
         log.push({ no: r.no, title: r.title, ok: false, errors: [e instanceof Error ? e.message : String(e)] });
