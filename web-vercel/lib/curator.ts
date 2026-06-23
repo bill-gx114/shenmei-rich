@@ -302,6 +302,57 @@ const REVEAL_SYSTEM_PROMPT = `${STYLE_BASE}
 - 讲"怎么看、好在哪、为什么耐看"，不要讲"画家用什么技法画出来的"。
 - reveals 数组长度与题数一致、顺序对应。只输出 JSON，不要解释或 markdown。`;
 
+export type LearnBlock = { type: string; text: string };
+export type LearnArticle = { dek: string; body: LearnBlock[] };
+
+const LEARN_SYSTEM_PROMPT = `${STYLE_BASE}
+
+你在为"审美日课 · 研习"写一篇**带读者学会"看"的专题短文**——围绕一个看画的角度（如肖像、光、留白），教普通观众怎么看、看出门道、长出判断，而不是讲技法或艺术史考据。返回**严格 JSON**：
+
+{
+  "dek": "一句话导语（18-30 字），点出这个角度为什么值得看",
+  "body": [
+    { "type": "p", "text": "段落（60-140 字）" },
+    { "type": "h", "text": "小标题（6-14 字）" },
+    { "type": "note", "text": "旁注/小练习（可选，30-60 字）" }
+  ]
+}
+
+要求：
+- body 6-9 个块，结构大致：开篇一段 → 3 个「小标题(h) + 段落(p)」展开不同侧面 → 结尾一个 note（给一个能立刻试的小练习或一句点睛）。
+- 站在**观众**一侧：多说"你会注意到 / 你的眼睛会被带到 / 之所以耐看，是因为"；落到眼睛能感知的体会，少讲"画家用什么技法画出来"。
+- 可举具体名作为例，但**不要编造**不确定的人名/年代/归属；宁可不点名。
+- 中文衬线感、克制、不滥用形容词；术语用得准但即时解释。
+- 只输出 JSON，不要解释或 markdown 代码块标记。`;
+
+/**
+ * 生成一篇「研习」专题短文（dek + body 块）。供 /api/learn-build 批量写入 learn_topics。
+ * 失败抛错由调用方处理（跳过该条、下轮再试）。
+ */
+export async function generateLearnArticle(title: string, angle: string): Promise<LearnArticle> {
+  const apiKey = requireApiKey();
+  const userPrompt = [
+    `专题标题：${title}`,
+    `取角（请据此展开，但标题以上面为准）：${angle}`,
+    '请输出符合结构的 JSON。',
+  ].join('\n');
+  const out = await callDeepSeek<{ dek?: unknown; body?: unknown }>(
+    apiKey, LEARN_SYSTEM_PROMPT, userPrompt, 3072);
+  const dek = typeof out.dek === 'string' ? out.dek.trim() : '';
+  const rawBody = Array.isArray(out.body) ? (out.body as unknown[]) : [];
+  const body: LearnBlock[] = rawBody
+    .map((b): LearnBlock => {
+      const o = (b ?? {}) as { type?: unknown; text?: unknown };
+      return {
+        type: typeof o.type === 'string' ? o.type : 'p',
+        text: typeof o.text === 'string' ? o.text : '',
+      };
+    })
+    .filter((b) => b.text.length > 0);
+  if (body.length === 0) throw new Error('研习文 body 为空');
+  return { dek, body };
+}
+
 /**
  * 只为「每日三题」补写答后揭晓的「为什么」。用于给已建作品回填 reveal，
  * 不必重跑整包。best-effort：失败/缺失返回空串，由调用方决定是否跳过。
