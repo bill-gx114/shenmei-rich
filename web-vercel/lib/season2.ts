@@ -77,7 +77,7 @@ export const SEASON2: SeasonWork[] = [
   { title: '下十字架', artist: '凡·德·维登', slug: 'Descent_from_the_Cross_(van_der_Weyden)', region: 'west', category: '画', week: 7 },
   { title: '以马忤斯的晚餐', artist: '卡拉瓦乔', slug: 'Supper_at_Emmaus_(London)', region: 'west', category: '画', week: 7 },
   { title: '西斯廷圣母', artist: '拉斐尔', slug: 'Sistine_Madonna', region: 'west', category: '画', week: 7 },
-  { title: '朝元仙仗图', artist: '武宗元', slug: '朝元仙仗图', lang: 'zh', region: 'east', category: '画', week: 7 },
+  { title: '八十七神仙卷', artist: '吴道子（传）', slug: '八十七神仙卷', lang: 'zh', region: 'east', category: '画', week: 7 },
   // 第 8 周 · 历史与权力
   { title: '荷拉斯兄弟之誓', artist: '雅克-路易·大卫', slug: 'Oath_of_the_Horatii', region: 'west', category: '画', week: 8 },
   { title: '布雷达的投降', artist: '委拉斯开兹', slug: 'The_Surrender_of_Breda', region: 'west', category: '画', week: 8 },
@@ -117,7 +117,7 @@ export const SEASON2: SeasonWork[] = [
   { title: '十字圣约翰的基督', artist: '达利', slug: 'Christ_of_Saint_John_of_the_Cross', region: 'west', category: '画', week: 12 },
   { title: '爱之歌', artist: '基里科', slug: 'The_Song_of_Love', region: 'west', category: '画', week: 12 },
   { title: '我与村庄', artist: '夏加尔', slug: 'I_and_the_Village', region: 'west', category: '画', week: 12 },
-  { title: '雨后的欧洲', artist: '马克斯·恩斯特', slug: 'Europe_after_the_Rain_II', region: 'west', category: '画', week: 12 },
+  { title: '理性沉睡产生怪物', artist: '戈雅', slug: 'The_Sleep_of_Reason_Produces_Monsters', region: 'west', category: '画', week: 12 },
   // 第 13 周 · 中国书画
   { title: '五马图', artist: '李公麟', slug: '五马图', lang: 'zh', region: 'east', category: '画', week: 13 },
   { title: '瑞鹤图', artist: '赵佶', slug: '瑞鶴圖', lang: 'zh', region: 'east', category: '画', week: 13 },

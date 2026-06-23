@@ -43,8 +43,7 @@ export const IMAGE_OVERRIDES: Record<string, string> = {
   '220': 'https://commons.wikimedia.org/wiki/Special:FilePath/%E8%91%A3%E6%BA%90%E6%BD%87%E6%B9%98%E5%9B%BE%E5%8D%B7.png?width=1600', // 董源·潇湘图
   '222': 'http://www.chinaonlinemuseum.com/resources/Painting/HuangGongwang/fuchun-range.jpg', // 黄公望·富春大岭图
   'R017': 'https://commons.wikimedia.org/wiki/Special:FilePath/Along%20the%20River%20During%20the%20Qingming%20Festival%20%28Qing%20Court%20Version%29.jpg?width=1600', // 张择端·清明上河图
+  // 180/215 原作（朝元仙仗图 / 雨后的欧洲）无干净公版图，已在 season2.ts 替换为下列作品：
+  '180': 'https://commons.wikimedia.org/wiki/Special:FilePath/Eighty-seven%20Celestials.jpg?width=1600', // 吴道子（传）·八十七神仙卷（替换原 朝元仙仗图）
+  '215': 'https://commons.wikimedia.org/wiki/Special:FilePath/Francisco%20Jos%C3%A9%20de%20Goya%20y%20Lucientes%20-%20The%20sleep%20of%20reason%20produces%20monsters%20%28No.%2043%29%2C%20from%20Los%20Caprichos%20-%20Google%20Art%20Project.jpg?width=1600', // 戈雅·理性沉睡产生怪物（替换原 雨后的欧洲）
 };
-
-// 仍缺正确图源（Commons/维基均无，需手动补：把图按「编号.后缀」存好后用 imgset 或本表指定）：
-//   180 武宗元·朝元仙仗图（真迹失踪；网上仅书格网盘 / JS 画廊，无直链）
-//   215 马克斯·恩斯特·雨后的欧洲（版权作品，无自由图源）
